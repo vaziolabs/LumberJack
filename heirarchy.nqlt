@@ -1,0 +1,29 @@
+graph {
+  handle: "First",
+  nodes: [
+    { id: 1, handle: "Vertex1", contains: [*] },
+    { id: 2, handle: "Vertex2", contains: [*] }
+  ],
+  connections: [
+    { from: "Vertex1", to: "Vertex2", contains: (){} }
+  ]
+};
+
+graph {
+  handle: "Second",
+  nodes: [
+    { id: 1, handle: "Vertex1", contains: [*] },
+    { id: 2, handle: "Vertex2", contains: [*] }
+  ],
+  edges: [
+    { from: "Vertex1", to: "Vertex2", contains: (){} }
+  ]
+};
+
+network {
+  handle: /,  # Reserved Token
+  connection: [
+    { from: "Graph1", to: "Graph3" },
+    { from: "Vertex2" in graph "First", to: "Vertex1" in graph "Second", contains: (){} }
+  ]
+};
