@@ -1,29 +1,35 @@
 graph {
-  handle: "First",
+  key: "First",
   nodes: [
-    { id: 1, handle: "Vertex1", contains: [*] },
-    { id: 2, handle: "Vertex2", contains: [*] }
+    { key: 1, contains: [*] },
+    { key: "Second", contains: [*] }
   ],
   connections: [
-    { from: "Vertex1", to: "Vertex2", contains: (){} }
+    { key: "FtoS", from: node 1, to: node "Second", contains: (x){ return x; } }
   ]
 };
 
 graph {
-  handle: "Second",
+  key: "Second",
   nodes: [
-    { id: 1, handle: "Vertex1", contains: [*] },
-    { id: 2, handle: "Vertex2", contains: [*] }
+    { key: "First", contains: [*] },
+    { key: "Second", contains: [*] }
   ],
-  edges: [
-    { from: "Vertex1", to: "Vertex2", contains: (){} }
+  connections: [
+    { key: "FtoS", from: node "First", to: node "Second", contains: (x){ x + 1; } }
   ]
 };
 
+# We should not be able to create these connections if the resources don't exist
 network {
-  handle: /,  # Reserved Token
+  key: "/",  # Reserved Token - Should be created by default
   connection: [
-    { from: "Graph1", to: "Graph3" },
-    { from: "Vertex2" in graph "First", to: "Vertex1" in graph "Second", contains: (){} }
+    { key: "G1toG1", from: graph "First", to: graph "Second" },
+    {
+      key: "S1toF2",
+      from: node "Second" in graph "First",
+      to: node "First" in graph "Second",
+      contains: (){}
+    }
   ]
 };

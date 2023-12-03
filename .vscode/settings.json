@@ -1,5 +1,6 @@
 {
     "files.associations": {
-      "*.nqlt": "nqlt"
+      "*.nqlt": "nqlt",
+      "*.nqls": "nqls"
     }
   }
