@@ -1,0 +1,35 @@
+graph {
+  key: "First",
+  nodes: [
+    { key: 1, contains: [*] },
+    { key: "Second", contains: [*] }
+  ],
+  connections: [
+    { key: "FtoS", from: node 1, to: node "Second", contains: (x){ return x; } }
+  ]
+};
+
+graph {
+  key: "Second",
+  nodes: [
+    { key: "First", contains: [*] },
+    { key: "Second", contains: [*] }
+  ],
+  connections: [
+    { key: "FtoS", from: node "First", to: node "Second", contains: (x){ x + 1; } }
+  ]
+};
+
+# We should not be able to create these connections if the resources don't exist
+network {
+  key: "/",  # Reserved Token - Should be created by default
+  connection: [
+    { key: "G1toG1", from: graph "First", to: graph "Second" },
+    {
+      key: "S1toF2",
+      from: node "Second" in graph "First",
+      to: node "First" in graph "Second",
+      contains: (){}
+    }
+  ]
+};
