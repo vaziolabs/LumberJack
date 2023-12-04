@@ -1,16 +1,24 @@
 #include "key.h"
 
-template <typename T>
-Object::Object(T value) { this->value = value; }
+bool Object::isInt() const { return std::holds_alternative<int>(this->value); }
+bool Object::isDouble() const { return std::holds_alternative<double>(this->value); }
+bool Object::isChar() const { return std::holds_alternative<char>(this->value); }
+bool Object::isString() const { return std::holds_alternative<std::string>(this->value); }
 
+const type_info& Object::getType() {
+	if (this->isInt()) return typeid(int);
+	else if (this->isDouble()) return typeid(double);
+	else if (this->isChar()) return typeid(char);
+	else if (this->isString()) return typeid(std::string);
+	else return typeid(void);
+}
 
+std::string Object::getTypeName() {
+	if (this->isInt()) return "int";
+	else if (this->isDouble()) return "double";
+	else if (this->isChar()) return "char";
+	else if (this->isString()) return "string";
+	else return "void";
+}
 
-const type_info& Object::getType() const { return value.type(); }
-const char* Object::getTypeName() const { return value.type().name(); }
-bool Object::isInt() const { return value.type() == typeid(int); }
-bool Object::isDouble() const { return value.type() == typeid(double); }
-bool Object::isChar() const { return value.type() == typeid(char); }
-bool Object::isString() const { return value.type() == typeid(std::string); }
-
-std::any Object::getValue() const { return value; }
-
+auto Object::getValue() -> decltype(value) { return this->value; }

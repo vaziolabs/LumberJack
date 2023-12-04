@@ -1,21 +1,34 @@
 #pragma once
-#include <any>
 #include <string>
 #include <typeinfo>
+#include <variant>
+#include <sstream>
+
+using Value = std::variant<int, double, char, std::string>;
 
 class Object {
-public:
-	std::any value;
+	Value value;
 
-	template <typename T>
-	Object(T value);
+	public:
+		template <typename T>
+		Object(T val) : value(val) {}
 
-	std::any getValue() const;
-	const type_info& getType() const;
-	const char* getTypeName() const;
-	bool isInt() const;
-	bool isDouble() const;
-	bool isChar() const;
-	bool isString() const;
+		const type_info& getType();
+		std::string getTypeName();
+		auto getValue() -> decltype(value);
+
+		friend std::ostream& operator<<(std::ostream& os, const Object& obj);
+
+	private:
+		bool isInt() const;
+		bool isDouble() const;
+		bool isChar() const;
+		bool isString() const;
 };
+
+inline
+std::ostream& operator<<(std::ostream& os, const Object& obj) {
+	std::visit([&os](const auto& val) { os << val; }, obj.value);
+	return os;
+}
 
