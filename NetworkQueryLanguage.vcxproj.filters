@@ -30,13 +30,13 @@
     <ClCompile Include="connection.h">
       <Filter>Header Files</Filter>
     </ClCompile>
-    <ClCompile Include="network.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="operation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="setmap.cpp">
+    <ClCompile Include="keytree.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="network.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -50,16 +50,19 @@
     <ClInclude Include="tests.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="node.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="network.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="setmap.h">
+    <ClInclude Include="networknode.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="function.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="keynode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="keytree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="network.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

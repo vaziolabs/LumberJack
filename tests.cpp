@@ -2,41 +2,45 @@
 #include <iostream>
 #include <cstdio>
 
-inline Value test() {
+static inline Value testFunction() {
 	return Value("Test Function");
 }
 
-void connectionTest() {
-	Node node1;
-	node1.key = Key(1);
-	node1.values.addKV(Key("Name"), Value("Node 1"));
-
-	Node node2;
-	node2.key = Key(2);
-	node2.values.addKV(Key("Name"), Value("Node 2"));
-
-	Connection connection;
-
-	connection.key = Key(1);
-	connection.from = &node1;
-	connection.to = &node2;
-	connection.function = test;
-
-	std::cout << connection.key << std::endl;
-	std::cout << "Connection From: " << connection.from->key << std::endl;
-	std::cout << "Connection To: " << connection.to->key << std::endl;
-	std::cout << connection.function() << std::endl;
-}
-
 void keyTest() {
-	Key int_type = Key(1);
-	Key char_type = Key('a');
-	Key string_type = Key("Hello, Keys!");
+	Key int_type = 1;
+	Key char_type = 'a';
+	Key string_type = "Hello, Keys!";
 
 	std::cout << int_type.getTypeName() << ": " << int_type << std::endl;
 	std::cout << char_type.getTypeName() << ": " << char_type << std::endl;
 	std::cout << string_type.getTypeName() << ": " << string_type << std::endl;
 }
+
+void keyNodeTest() {
+	KeyNode key_node1 = KeyNode("Parent");
+	KeyNode key_node2 = KeyNode("Child 1");
+	KeyNode key_node3 = KeyNode("Child 2");
+
+	key_node1.children.push_back(&key_node2);
+	key_node1.children.push_back(&key_node3);
+
+	key_node2.parent = &key_node1;
+	key_node3.parent = &key_node1;
+
+	std::cout << key_node1.key << std::endl;
+	std::cout << key_node1.children[0]->key << std::endl;
+	std::cout << key_node1.children[1]->key << std::endl;
+
+	std::cout << key_node2.parent->key << std::endl;
+	std::cout << key_node3.parent->key << std::endl;
+}
+
+void keyTreeTest() {
+	KeyTree key_tree;
+
+	return;
+}
+
 
 void valueTest() {
 	Value bool_type = Value(true);
@@ -55,8 +59,9 @@ void valueTest() {
 void testMain() {
 	printf("Running tests...\n");
 
-	printf("\nConnection tests:\n");
-	connectionTest();
+	printf("\nKeyNode tests:\n");
+	keyNodeTest();
+
 	// printf("\nKey tests:\n");
 	// keyTest();
 

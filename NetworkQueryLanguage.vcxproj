@@ -131,19 +131,20 @@
   <ItemGroup>
     <ClCompile Include="connection.h" />
     <ClCompile Include="key.cpp" />
+    <ClCompile Include="keytree.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="network.cpp" />
     <ClCompile Include="operation.cpp" />
-    <ClCompile Include="setmap.cpp" />
     <ClCompile Include="tests.cpp" />
     <ClCompile Include="value.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="function.h" />
     <ClInclude Include="key.h" />
+    <ClInclude Include="keynode.h" />
+    <ClInclude Include="keytree.h" />
     <ClInclude Include="network.h" />
-    <ClInclude Include="node.h" />
-    <ClInclude Include="setmap.h" />
+    <ClInclude Include="networknode.h" />
     <ClInclude Include="tests.h" />
     <ClInclude Include="value.h" />
   </ItemGroup>

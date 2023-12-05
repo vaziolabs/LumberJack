@@ -11,7 +11,7 @@ class Key {
 		Key() {}
 
 		template <typename T>
-		Key(T val) : value(val) {}
+		Key(const T& val) : value(val) {}
 
 		const type_info& getType();
 		std::string getTypeName();
@@ -19,6 +19,7 @@ class Key {
 
 		friend std::ostream& operator<<(std::ostream& os, const Key& obj);
 		friend bool operator<(const Key& lhs, const Key& rhs);
+		friend bool operator>(const Key& lhs, const Key& rhs);
 		friend bool operator==(const Key& lhs, const Key& rhs);
 	private:
 		bool isInt() const;
@@ -37,7 +38,19 @@ inline bool operator<(const Key& lhs, const Key& rhs) {
 			return lv < rv;
 		}
 		else {
-			// Handle the case when types are different
+			printf("Operator \"<\" Warning: Types are different\n");
+			return false; 
+		}
+		}, lhs.value, rhs.value);
+}
+
+inline bool operator>(const Key& lhs, const Key& rhs) {
+	return std::visit([](const auto& lv, const auto& rv) {
+		if constexpr (std::is_same_v<decltype(lv), decltype(rv)>) {
+			return lv > rv;
+		}
+		else {
+			printf("Operator \">\" Warning: Types are different\n");
 			return false; 
 		}
 		}, lhs.value, rhs.value);
@@ -49,7 +62,7 @@ inline bool operator==(const Key& lhs, const Key& rhs) {
 			return lv == rv;
 		}
 		else {
-			// Handle the case when types are different
+			printf("Operator \"==\" Warning: Types are different\n");
 			return false; 
 		}
 		}, lhs.value, rhs.value);
