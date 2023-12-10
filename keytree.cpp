@@ -1,38 +1,19 @@
 #include "keytree.h"
 
-KeyNode* KeyTree::insert(KeyNode* keynode) {
+KeyNode* KeyTree::insert(KeyNode* keynode, KeyType parent_key) {
 	if (this->root == nullptr) {
 		this->root = keynode;
 		return keynode;
 	}
 
-	KeyNode* current = this->root;
+	KeyNode* cursor = this->root->findDescendant(parent_key);
 
-	while (current != nullptr) {
-		if (keynode->key < current->key) {
-			if (current->children.size() == 0) {
-				current->children.push_back(keynode);
-				keynode->parent = current;
-				return keynode;
-			}
-			else {
-				current = current->children[0];
-			}
-		}
-		else if (keynode->key > current->key) {
-			if (current->children.size() == 0) {
-				current->children.push_back(keynode);
-				keynode->parent = current;
-				return keynode;
-			}
-			else {
-				current = current->children[current->children.size() - 1];
-			}
-		}
-		else {
-			return current;
-		}
+	if (cursor == nullptr) {
+		return nullptr;
 	}
+
+	keynode->parent = cursor;
+	cursor->children.push_back(keynode);
 }
 
 KeyNode* KeyTree::search(KeyType key) const {
@@ -40,29 +21,7 @@ KeyNode* KeyTree::search(KeyType key) const {
 		return nullptr;
 	}
 
-	KeyNode* current = this->root;
-
-	while (current != nullptr) {
-		if (key < current->key) {
-			if (current->children.size() == 0) {
-				return nullptr;
-			}
-			else {
-				current = current->children[0];
-			}
-		}
-		else if (key > current->key) {
-			if (current->children.size() == 0) {
-				return nullptr;
-			}
-			else {
-				current = current->children[current->children.size() - 1];
-			}
-		}
-		else {
-			return current;
-		}
-	}	
+	return this->root->findDescendant(key);
 }
 
 void KeyTree::remove(int id) const {
@@ -262,19 +221,26 @@ void KeyTree::print() const {
 	std::vector<KeyNode*> nextLevel;
 
 	currentLevel.push_back(this->root);
+	int level = 0;
 
 	while (currentLevel.size() > 0) {
+		std::cout << "Level: " << level << " - [ ";
 		for (int i = 0; i < currentLevel.size(); i++) {
-			std::cout << currentLevel[i]->key << " ";
+			std::cout << currentLevel[i]->key;
+
+			if (i < currentLevel.size() - 1) {
+				std::cout << ", ";
+			}
 			
 			for (int j = 0; j < currentLevel[i]->children.size(); j++) {
 				nextLevel.push_back(currentLevel[i]->children[j]);
 			}
 		}
 
-		std::cout << std::endl;
+		std::cout << " ]" << std::endl;
 
 		currentLevel = nextLevel;
 		nextLevel.clear();
+		level++;
 	}
 }	

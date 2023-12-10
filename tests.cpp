@@ -37,40 +37,42 @@ void keyNodeTest() {
 void keyTreeTest() {
 	KeyTree* key_tree = new KeyTree(new KeyNode("Root"));
 
-	key_tree->insert(new KeyNode("First Child"));
-	key_tree->insert(new KeyNode("Second Child"));
+	key_tree->insert(new KeyNode("First Child"), "Root");
+	key_tree->insert(new KeyNode("Second Child"), "Root");
 
-	key_tree->insert(new KeyNode("First Grandchild"));
-	key_tree->insert(new KeyNode("Second Grandchild"));
+	key_tree->insert(new KeyNode("First Grandchild"), "First Child");
+	key_tree->insert(new KeyNode("Second Grandchild"), "Second Child");
 
-	key_tree->insert(new KeyNode("First Great Grandchild"));
+	key_tree->insert(new KeyNode("First Great Grandchild"), "Second Grandchild");
 
-	key_tree->insert(new KeyNode("Third Child"));
+	key_tree->insert(new KeyNode("Third Child"), "Root");
 
 	key_tree->print();
 
 	printf("\n");
 
-	KeyNode* cursor = key_tree->root;
-	std::cout << "Root: " << cursor->key << std::endl;
-	std::cout << "Root's Children: " << std::endl;
+	KeyNode* cursor = key_tree->search("Second Grandchild");
+
+	std::cout << "Search Found: " << cursor->key << std::endl;
+
+	std::cout << "\t Parent: " << cursor->parent->key << std::endl;
+
+	std::cout << "\t Children: " << std::endl;
 	for (int i = 0; i < cursor->children.size(); i++) {
-		std::cout << "\t" << cursor->children[i]->key << std::endl;
+		std::cout << "\t\t" << cursor->children[i]->key << std::endl;
 	}
 
-	cursor = cursor->children[0];
-	printf("\n");
+	std::cout << "\t Ancestors: " << std::endl;
+	std::list<KeyNode*> ancestors = cursor->getAncestors();
+	std::cout << "\t\t[ ";
+	for (std::list<KeyNode*>::iterator it = ancestors.begin(); it != ancestors.end(); ++it) {
+		std::cout << (*it)->key;
 
-	std::cout << "First Child: " << cursor->key << std::endl;
-	std::cout << "First Child's Parent: " << cursor->parent->key << std::endl;
-	std::cout << "First Child's Children: " << std::endl;
-	for (int i = 0; i < cursor->children.size(); i++) {
-		std::cout << "\t" << cursor->children[i]->key << std::endl;
+		if (it != --ancestors.end()) { std::cout << ", "; }
 	}
-
+	std::cout << " ]" << std::endl;
 	return;
 }
-
 
 void valueTest() {
 	Value bool_type = Value(true);

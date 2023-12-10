@@ -15,7 +15,7 @@ public:
 	void remove(char id) const;
 	void remove(std::string id) const;
 
-	KeyNode* insert(KeyNode *key);
+	KeyNode* insert(KeyNode *key, KeyType parent_key);
 	KeyNode* search(KeyType key) const;
 	
 	void print() const;
