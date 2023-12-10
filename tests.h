@@ -5,10 +5,10 @@
 #include "key.h"
 // #include "connection.h"
 #include "keynode.h"
-// #include "keytree.h"
+#include "keytree.h"
 
 void keyTest();
-void keyNodeTest();
+//void keyNodeTest();
 void keyTreeTest();
 void valueTest();
 

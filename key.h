@@ -12,8 +12,11 @@ class Key {
 	public:
 		Key() = default;
 
+
 		template <typename T>
-		Key(T&& val) : key(std::forward<T>(val)) {}
+		Key(T val) : key(val) {}
+		//Key(T&& val) : key(std::forward<T>(val)) {}
+
 
 		bool isInt() const;
 		bool isChar() const;

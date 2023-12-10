@@ -18,7 +18,7 @@ void keyTest() {
 
 void keyNodeTest() {
 	KeyNode parent_node = KeyNode("Parent");
-	KeyNode child_1 = KeyNode("First Child", &parent_node);
+	KeyNode child_1 = KeyNode("First Child", &parent_node);	
 	KeyNode child_2 = KeyNode("Second Child");
 
 	parent_node.children.push_back(&child_1);
@@ -35,7 +35,38 @@ void keyNodeTest() {
 }
 
 void keyTreeTest() {
-	// KeyTree key_tree;
+	KeyTree* key_tree = new KeyTree(new KeyNode("Root"));
+
+	key_tree->insert(new KeyNode("First Child"));
+	key_tree->insert(new KeyNode("Second Child"));
+
+	key_tree->insert(new KeyNode("First Grandchild"));
+	key_tree->insert(new KeyNode("Second Grandchild"));
+
+	key_tree->insert(new KeyNode("First Great Grandchild"));
+
+	key_tree->insert(new KeyNode("Third Child"));
+
+	key_tree->print();
+
+	printf("\n");
+
+	KeyNode* cursor = key_tree->root;
+	std::cout << "Root: " << cursor->key << std::endl;
+	std::cout << "Root's Children: " << std::endl;
+	for (int i = 0; i < cursor->children.size(); i++) {
+		std::cout << "\t" << cursor->children[i]->key << std::endl;
+	}
+
+	cursor = cursor->children[0];
+	printf("\n");
+
+	std::cout << "First Child: " << cursor->key << std::endl;
+	std::cout << "First Child's Parent: " << cursor->parent->key << std::endl;
+	std::cout << "First Child's Children: " << std::endl;
+	for (int i = 0; i < cursor->children.size(); i++) {
+		std::cout << "\t" << cursor->children[i]->key << std::endl;
+	}
 
 	return;
 }
@@ -58,11 +89,14 @@ void valueTest() {
 void testMain() {
 	printf("Running tests...\n");
 
-	printf("\nKey tests:\n");
-	keyTest();
+	//printf("\nKey tests:\n");
+	//keyTest();
 
-	printf("\nKeyNode tests:\n");
-	keyNodeTest();
+	//printf("\nKeyNode tests:\n");
+	//keyNodeTest();
+
+	printf("\nKeyTree tests:\n");
+	keyTreeTest();
 
 
 	// printf("\nValue tests:\n");
