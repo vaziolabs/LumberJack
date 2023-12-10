@@ -5,10 +5,8 @@
 #include "function.h"
 
 typedef struct Connection {
-	Key key;
+	Key* key;
 	NetworkNode *from;
 	NetworkNode *to;
 	//Function<Value> function;
-
-	Connection() : key() {}
 } Connection;

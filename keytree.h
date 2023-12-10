@@ -2,7 +2,7 @@
 #include "key.h"
 #include "keynode.h"
 
-
+/*
 class KeyTree {
 public:
 	KeyNode* root;
@@ -12,7 +12,8 @@ public:
 
 	KeyNode* insert(Key *key);
 	KeyNode* search(Key *key);
-	KeyNode* remove(Key *key);
+	void remove(Key* key);
 
-	void print();
+	//void print();
 };
+*/

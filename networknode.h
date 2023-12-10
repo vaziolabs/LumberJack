@@ -9,6 +9,4 @@ struct NetworkNode {
 	Key key;
 	std::map<Key*, std::set<Value>*> datamap;
 	// TODO: figure out how to determine a pointer to some values
-
-	NetworkNode() : key() {}
 };

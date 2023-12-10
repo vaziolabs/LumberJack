@@ -7,7 +7,8 @@ public:
 	Key key;
 	KeyNode* parent;
 	std::vector<KeyNode*> children;
-
-	KeyNode() : key(Key()), parent(nullptr) {} 
-	KeyNode(Key key) : key(key), parent(nullptr) {}
+	
+	KeyNode();
+	KeyNode(Key key);
+	KeyNode(Key key, KeyNode* parent);
 };

@@ -131,6 +131,7 @@
   <ItemGroup>
     <ClCompile Include="connection.h" />
     <ClCompile Include="key.cpp" />
+    <ClCompile Include="keynode.cpp" />
     <ClCompile Include="keytree.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="network.cpp" />

@@ -1,5 +1,4 @@
-#include "keytree.h"
-
+/*
 KeyNode* KeyTree::insert(Key *key) {
     if (this->root == nullptr) {
 		this->root = new KeyNode(key);
@@ -68,15 +67,15 @@ KeyNode* KeyTree::search(Key *key) {
 	
 }
 
-KeyNode* KeyTree::remove(Key *key) {
+void KeyTree::remove(Key *key) {
 	if (this->root == nullptr) {
-		return nullptr;
+		return;
 	}
 
 	KeyNode* current = this->search(key);
 
 	if (current == nullptr) {
-		return nullptr;
+		return;
 	}
 
 	if (current->children.size() == 0) {
@@ -112,4 +111,4 @@ KeyNode* KeyTree::remove(Key *key) {
 			}
 		}
 	}	
-}
+}*/

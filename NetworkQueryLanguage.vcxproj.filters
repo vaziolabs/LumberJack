@@ -39,6 +39,9 @@
     <ClCompile Include="network.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="keynode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="key.h">

@@ -17,26 +17,25 @@ void keyTest() {
 }
 
 void keyNodeTest() {
-	KeyNode key_node1 = KeyNode("Parent");
-	KeyNode key_node2 = KeyNode("Child 1");
-	KeyNode key_node3 = KeyNode("Child 2");
+	KeyNode parent_node = KeyNode("Parent");
+	KeyNode child_1 = KeyNode("First Child", &parent_node);
+	KeyNode child_2 = KeyNode("Second Child");
 
-	key_node1.children.push_back(&key_node2);
-	key_node1.children.push_back(&key_node3);
+	parent_node.children.push_back(&child_1);
+	parent_node.children.push_back(&child_2);
 
-	key_node2.parent = &key_node1;
-	key_node3.parent = &key_node1;
+	child_2.parent = &parent_node;
 
-	std::cout << key_node1.key << std::endl;
-	std::cout << key_node1.children[0]->key << std::endl;
-	std::cout << key_node1.children[1]->key << std::endl;
+	std::cout << "Parent: \t\t" << parent_node.key << std::endl;
+	std::cout << "\tChild[0]: \t" << parent_node.children[0]->key << std::endl;
+	std::cout << "\tChild[1]: \t" << parent_node.children[1]->key << std::endl;
 
-	std::cout << key_node2.parent->key << std::endl;
-	std::cout << key_node3.parent->key << std::endl;
+	std::cout << "Child 1's Parent: \t" << child_1.parent->key << std::endl;
+	std::cout << "Child 2's Parent: \t" << child_2.parent->key << std::endl;
 }
 
 void keyTreeTest() {
-	KeyTree key_tree;
+	// KeyTree key_tree;
 
 	return;
 }
@@ -59,11 +58,12 @@ void valueTest() {
 void testMain() {
 	printf("Running tests...\n");
 
+	printf("\nKey tests:\n");
+	keyTest();
+
 	printf("\nKeyNode tests:\n");
 	keyNodeTest();
 
-	// printf("\nKey tests:\n");
-	// keyTest();
 
 	// printf("\nValue tests:\n");
 	// valueTest();

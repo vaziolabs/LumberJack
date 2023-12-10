@@ -15,6 +15,8 @@
 //		 (void, null, etc.)?
 //       or do we want to use any/void or a generic <T>?
 
+// ARE We GOING TO MAKE EVERYTHING A STRING, OR ARE WE GOING TO USE A NUMBER TYPE for Hashing Str->Int?
+
 class Value {
 	std::variant<bool, int, double, char, std::string, Function<Value>> value;
 
