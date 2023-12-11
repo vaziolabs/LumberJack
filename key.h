@@ -14,16 +14,15 @@ class Key {
 
 
 		template <typename T>
-		Key(T val) : key(val) {}
-		//Key(T&& val) : key(std::forward<T>(val)) {}
-
+		//Key(T val) : key(val) {}
+		Key(T&& val) : key(std::forward<T>(val)) {}
 
 		bool isInt() const;
 		bool isChar() const;
 		bool isString() const;
-		const type_info& getType() const;
-		std::string getTypeName() const;
-		auto getValue() const -> decltype(key);
+		const type_info& type_info() const;
+		std::string type() const;
+		auto value() const -> decltype(key);
 
 		friend std::ostream& operator<<(std::ostream& os, const Key& obj);
 		friend bool operator<(const Key& lhs, const Key& rhs);

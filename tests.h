@@ -1,15 +1,17 @@
 #pragma once
-// #include "network.h"
-// #include "networknode.h"
-#include "value.h"
 #include "key.h"
-// #include "connection.h"
+#include "value.h"
 #include "keynode.h"
 #include "keytree.h"
+#include "connection.h"
+#include "networknode.h"
+#include "network.h"
 
 void keyTest();
-//void keyNodeTest();
-void keyTreeTest();
 void valueTest();
-
+void keyNodeTest();
+void keyTreeTest();
+void networkNodeTest();
+void connectionTest();
+void networkTest();
 void testMain();

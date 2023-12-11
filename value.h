@@ -3,9 +3,7 @@
 #include <string>
 #include <typeinfo>
 #include <variant>
-#include <sstream>
-#include <functional>
-#include <any>
+#include <ostream>
 
 // TODO: Are we going to use other types 
 //		 (e.g. float, long, etc.)?
@@ -17,16 +15,18 @@
 
 // ARE We GOING TO MAKE EVERYTHING A STRING, OR ARE WE GOING TO USE A NUMBER TYPE for Hashing Str->Int?
 
+using ValueType = std::variant<bool, int, double, char, std::string>;
+
 class Value {
-	std::variant<bool, int, double, char, std::string, Function<Value>> value;
+	 ValueType v;
 
 public:
 	template <typename T>
-	Value(T val) : value(val) {}
+	Value(T val) : v(val) {}
 
-	const type_info& getType();
-	std::string getTypeName();
-	auto getValue() -> decltype(value);
+	const type_info& type_info();
+	std::string type();
+	auto value() -> decltype(v);
 
 	friend std::ostream& operator<<(std::ostream& os, const Value& obj);
 

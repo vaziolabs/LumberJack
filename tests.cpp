@@ -11,9 +11,23 @@ void keyTest() {
 	Key char_type = 'a';
 	Key string_type = "Hello, Keys!";
 
-	std::cout << int_type.getTypeName() << ": " << int_type << std::endl;
-	std::cout << char_type.getTypeName() << ": " << char_type << std::endl;
-	std::cout << string_type.getTypeName() << ": " << string_type << std::endl;
+	std::cout << int_type.type() << ": " << int_type << std::endl;
+	std::cout << char_type.type() << ": " << char_type << std::endl;
+	std::cout << string_type.type() << ": " << string_type << std::endl;
+}
+
+void valueTest() {
+	Value bool_type = Value(true);
+	Value int_type = Value(1);
+	Value double_type = Value(1.0);
+	Value char_type = Value('a');
+	Value string_type = Value("Hello, Values!");
+
+	std::cout << bool_type.type() << ": " << bool_type << std::endl;
+	std::cout << int_type.type() << ": " << int_type << std::endl;
+	std::cout << double_type.type() << ": " << double_type << std::endl;
+	std::cout << char_type.type() << ": " << char_type << std::endl;
+	std::cout << string_type.type() << ": " << string_type << std::endl;
 }
 
 void keyNodeTest() {
@@ -74,18 +88,52 @@ void keyTreeTest() {
 	return;
 }
 
-void valueTest() {
-	Value bool_type = Value(true);
-	Value int_type = Value(1);
-	Value double_type = Value(1.0);
-	Value char_type = Value('a');
-	Value string_type = Value("Hello, Values!");
+void networkNodeTest() {
+	NetworkNode* node_1 = new NetworkNode(1);
+	NetworkNode* node_a = new NetworkNode('a');
+	NetworkNode* node_2 = new NetworkNode("Two");
 
-	std::cout << bool_type.getTypeName() << ": " << bool_type << std::endl;
-	std::cout << int_type.getTypeName() << ": " << int_type << std::endl;
-	std::cout << double_type.getTypeName() << ": " << double_type << std::endl;
-	std::cout << char_type.getTypeName() << ": " << char_type << std::endl;
-	std::cout << string_type.getTypeName() << ": " << string_type << std::endl;
+	std::cout << node_1->key.type() << ": " << node_1->key << std::endl;
+	std::cout << node_a->key.type() << ": " << node_a->key << std::endl;
+	std::cout << node_2->key.type() << ": " << node_2->key << std::endl;
+}
+
+void connectionTest() {
+	NetworkNode* node_1 = new NetworkNode(1);
+	node_1->addValue("One");
+	NetworkNode* node_a = new NetworkNode('a');
+	node_a->addValue("A");
+	NetworkNode* node_2 = new NetworkNode("Two");
+	node_2->addValue("2.0001");
+	
+	Connection connection_1 = Connection(node_1, node_a);
+	node_1->addConnection(&connection_1);
+	Connection connection_2 = Connection(node_a, node_2);
+	node_a->addConnection(&connection_2);
+
+	std::cout << "Connection 1: " << connection_1.from->key << " -> " << connection_1.to->key << std::endl;
+	std::cout << "Connection 2: " << connection_2.from->key << " -> " << connection_2.to->key << std::endl;
+
+	node_1->print();
+	node_a->print();
+}
+
+void networkTest() {
+	Network* network = new Network();
+
+	NetworkNode* node_1 = new NetworkNode(1);
+	NetworkNode* node_a = new NetworkNode('a');
+	NetworkNode* node_2 = new NetworkNode("Two");
+	/*
+	network->addNode(node_1);
+	network->addNode(node_a);
+	network->addNode(node_2);
+
+	network->connect(node_1, node_a);
+	network->connect(node_a, node_2);
+
+	network->print();
+	*/
 }
 
 void testMain() {
@@ -94,15 +142,21 @@ void testMain() {
 	//printf("\nKey tests:\n");
 	//keyTest();
 
-	//printf("\nKeyNode tests:\n");
-	//keyNodeTest();
-
-	printf("\nKeyTree tests:\n");
-	keyTreeTest();
-
-
 	// printf("\nValue tests:\n");
 	// valueTest();
 
+	//printf("\nKeyNode tests:\n");
+	//keyNodeTest();
 
+	//printf("\nKeyTree tests:\n");
+	//keyTreeTest();
+
+	//printf("\nNetworkNode tests:\n");
+	//networkNodeTest();
+	
+	printf("\nConnection tests:\n");
+	connectionTest();
+
+	//printf("\nNetwork tests:\n");
+	//networkTest();	
 }

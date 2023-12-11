@@ -4,13 +4,13 @@ KeyNode::KeyNode() { this->key = NULL; this->parent = nullptr; }
 
 bool KeyNode::isRoot() const { return this->parent == nullptr; }
 bool KeyNode::leaf() const { return this->children.size() > 0; }
-bool KeyNode::isDescendantOf(Key* key) { return this->isDescendantOf(key->getValue()); }
-bool KeyNode::hasChild(Key* key) const { return this->hasChild(key->getValue()); }
+bool KeyNode::isDescendantOf(Key* key) { return this->isDescendantOf(key->value()); }
+bool KeyNode::hasChild(Key* key) const { return this->hasChild(key->value()); }
 
 std::vector<KeyNode*> KeyNode::getChildren() const { return this->children; }
 
 KeyNode* KeyNode::getParent() const { return this->parent; }
-KeyNode* KeyNode::findDescendant(Key* key) { return this->findDescendant(key->getValue()); }
+KeyNode* KeyNode::findDescendant(Key* key) { return this->findDescendant(key->value()); }
 
 bool KeyNode::isDescendantOf(KeyType key) {
 	if (this->isRoot()) {

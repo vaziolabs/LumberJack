@@ -129,12 +129,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="connection.cpp" />
     <ClCompile Include="connection.h" />
     <ClCompile Include="key.cpp" />
     <ClCompile Include="keynode.cpp" />
     <ClCompile Include="keytree.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="network.cpp" />
+    <ClCompile Include="networknode.cpp" />
     <ClCompile Include="operation.cpp" />
     <ClCompile Include="tests.cpp" />
     <ClCompile Include="value.cpp" />

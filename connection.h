@@ -1,12 +1,27 @@
 #pragma once
-#include "key.h"
-#include "value.h"
-#include "networknode.h"
 #include "function.h"
 
-typedef struct Connection {
-	Key* key;
-	NetworkNode *from;
-	NetworkNode *to;
-	//Function<Value> function;
-} Connection;
+class NetworkNode;
+
+class Connector {
+public:
+	NetworkNode* to;
+
+};
+
+class Connection : public Connector {
+public:
+	NetworkNode* from;
+
+	Connection(NetworkNode* from, NetworkNode* to);
+};
+
+class MultiConnection : public Connector {
+public:
+	NetworkNode* left;
+	NetworkNode* right;
+	//Function* function;
+
+	MultiConnection(NetworkNode* left, NetworkNode* right, NetworkNode* out);
+};
+
