@@ -65,10 +65,10 @@ void keyTreeTest() {
 
 	printf("\n");
 
+
 	KeyNode* cursor = key_tree->search("Second Grandchild");
 
 	std::cout << "Search Found: " << cursor->key << std::endl;
-
 	std::cout << "\t Parent: " << cursor->parent->key << std::endl;
 
 	std::cout << "\t Children: " << std::endl;
@@ -93,9 +93,9 @@ void networkNodeTest() {
 	NetworkNode* node_a = new NetworkNode('a');
 	NetworkNode* node_2 = new NetworkNode("Two");
 
-	std::cout << node_1->key.type() << ": " << node_1->key << std::endl;
-	std::cout << node_a->key.type() << ": " << node_a->key << std::endl;
-	std::cout << node_2->key.type() << ": " << node_2->key << std::endl;
+	std::cout << node_1->getKeyType() << ": " << node_1->key << std::endl;
+	std::cout << node_a->getKeyType() << ": " << node_a->key << std::endl;
+	std::cout << node_2->getKeyType() << ": " << node_2->key << std::endl;
 }
 
 void connectionTest() {
@@ -103,27 +103,41 @@ void connectionTest() {
 	node_1->addValue("One");
 	NetworkNode* node_a = new NetworkNode('a');
 	node_a->addValue("A");
+	node_a->addValue("S");
+	node_a->addValue("S");
 	NetworkNode* node_2 = new NetworkNode("Two");
 	node_2->addValue("2.0001");
+	node_2->addValue("Hello, Generics!");
 	
 	Connection connection_1 = Connection(node_1, node_a);
 	node_1->addConnection(&connection_1);
 	Connection connection_2 = Connection(node_a, node_2);
 	node_a->addConnection(&connection_2);
+	Connection connection_3 = Connection(node_2, node_1);
+	Connection connection_4 = Connection(node_2, node_a);
+	node_2->addConnection(&connection_3);
+	node_2->addConnection(&connection_4);
 
-	std::cout << "Connection 1: " << connection_1.from->key << " -> " << connection_1.to->key << std::endl;
-	std::cout << "Connection 2: " << connection_2.from->key << " -> " << connection_2.to->key << std::endl;
+	printf("Connections:\n");
+	std::cout << "\tConnection 1: " << connection_1.from->key << " -> " << connection_1.to->key << std::endl;
+	std::cout << "\tConnection 2: " << connection_2.from->key << " -> " << connection_2.to->key << std::endl;
+	std::cout << "\tConnection 3: " << connection_3.from->key << " -> " << connection_3.to->key << std::endl;
+	std::cout << "\tConnection 4: " << connection_4.from->key << " -> " << connection_4.to->key << std::endl;
 
+	printf("\nNodes:\n");
 	node_1->print();
+	printf("\n");
 	node_a->print();
+	printf("\n");
+	node_2->print();
 }
 
 void networkTest() {
-	Network* network = new Network();
+	//Network* network = new Network();
 
-	NetworkNode* node_1 = new NetworkNode(1);
-	NetworkNode* node_a = new NetworkNode('a');
-	NetworkNode* node_2 = new NetworkNode("Two");
+	//NetworkNode* node_1 = new NetworkNode(1);
+	//NetworkNode* node_a = new NetworkNode('a');
+	//NetworkNode* node_2 = new NetworkNode("Two");
 	/*
 	network->addNode(node_1);
 	network->addNode(node_a);
@@ -154,7 +168,7 @@ void testMain() {
 	//printf("\nNetworkNode tests:\n");
 	//networkNodeTest();
 	
-	printf("\nConnection tests:\n");
+	printf("\nConnection tests:\n\n");
 	connectionTest();
 
 	//printf("\nNetwork tests:\n");

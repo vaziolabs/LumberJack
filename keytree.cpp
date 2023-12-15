@@ -14,6 +14,7 @@ KeyNode* KeyTree::insert(KeyNode* keynode, KeyType parent_key) {
 
 	keynode->parent = cursor;
 	cursor->children.push_back(keynode);
+	return keynode;
 }
 
 KeyNode* KeyTree::search(KeyType key) const {
