@@ -24,11 +24,18 @@ public:
 	template <typename T>
 	Value(T val) : v(val) {}
 
-	const type_info& type_info();
 	std::string type();
 	auto value() -> decltype(v);
 
+	bool isSameType(const Value& value) const;
+
 	friend std::ostream& operator<<(std::ostream& os, const Value& obj);
+	friend bool operator==(const Value& lhs, const Value& rhs);
+	friend bool operator!=(const Value& lhs, const Value& rhs);
+	friend bool operator<(const Value& lhs, const Value& rhs);
+	friend bool operator>(const Value& lhs, const Value& rhs);
+	friend bool operator<=(const Value& lhs, const Value& rhs);
+	friend bool operator>=(const Value& lhs, const Value& rhs);
 
 private:
 	bool isBool() const;

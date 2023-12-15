@@ -10,6 +10,7 @@ public:
 
 	KeyTree() : root(new KeyNode()) {}
 	KeyTree(KeyNode* root) : root(root) {}
+	KeyTree(KeyType root_key) : root(new KeyNode(root_key)) {}
 
 	void remove(int id) const;
 	void remove(char id) const;

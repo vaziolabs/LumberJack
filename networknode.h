@@ -27,8 +27,8 @@ public:
 
 	void addValue(ValueType value);
 	void deleteValue(int index);
-	//int getIndex(Value value);
-	//int getIndex(ValueType value);
+	int getIndex(Value value);
+	int getIndex(ValueType value);
 	void addConnection(Connector* node);
 	void removeConnection(Connector* node);
 

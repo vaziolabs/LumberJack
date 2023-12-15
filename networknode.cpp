@@ -14,7 +14,6 @@ std::string NetworkNode::getKeyType() const { return key.type(); }
 void NetworkNode::deleteValue(int index) {
 	values.erase(values.begin() + index);
 }
-/*
 
 int NetworkNode::getIndex(Value value) {
 	auto it = std::find(values.begin(), values.end(), value);
@@ -25,7 +24,7 @@ int NetworkNode::getIndex(Value value) {
 
 	return -1;
 }
-/*
+
 int NetworkNode::getIndex(ValueType value) {
 	auto it = std::find_if(values.begin(), values.end(), [value](Value v) { return v.value() == value; });
 
@@ -35,7 +34,7 @@ int NetworkNode::getIndex(ValueType value) {
 
 	return -1;
 } 
-*/
+/**/
 void NetworkNode::addConnection(Connector* node) {
 	connections.insert(node);
 }

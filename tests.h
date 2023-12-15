@@ -5,7 +5,7 @@
 #include "keytree.h"
 #include "connection.h"
 #include "networknode.h"
-//#include "network.h"
+#include "network.h"
 
 void keyTest();
 void valueTest();

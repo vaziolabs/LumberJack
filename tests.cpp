@@ -133,12 +133,12 @@ void connectionTest() {
 }
 
 void networkTest() {
-	//Network* network = new Network();
+	Network* network = new Network();
 
-	//NetworkNode* node_1 = new NetworkNode(1);
-	//NetworkNode* node_a = new NetworkNode('a');
-	//NetworkNode* node_2 = new NetworkNode("Two");
-	/*
+	NetworkNode* node_1 = new NetworkNode(1);
+	NetworkNode* node_a = new NetworkNode('a');
+	NetworkNode* node_2 = new NetworkNode("Two");
+	
 	network->addNode(node_1);
 	network->addNode(node_a);
 	network->addNode(node_2);
@@ -147,7 +147,7 @@ void networkTest() {
 	network->connect(node_a, node_2);
 
 	network->print();
-	*/
+	
 }
 
 void testMain() {
