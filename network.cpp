@@ -1,30 +1,32 @@
 #include "network.h"
 
-NetworkNode* Network::addNode(KeyType key) {
-	// make sure node does not already exist
-	// iterate through nodes_map looking for matching keytype
-	for (auto it = nodes_map.begin(); it != nodes_map.end(); it++) {
-		if (it->first->value() == key) {
-			throw std::exception("Network addNode Error: Node already exists with that key type.");
-			return nullptr;
-		}
-	}
-
-	NetworkNode* node = new NetworkNode(key);
-	nodes.insert(*node);
-	nodes_map.insert({ &node->key, node });
-	return node;
+Network::Network() {
+	NetworkNode* root = new NetworkNode("/");
+	
+	this->nodes = { root };
+	this->connections = {};
 }
 
+Network::~Network() {
+	for (auto& node : nodes) {
+		delete node;
+
+	}
+
+	for (auto& connection : connections) {
+		delete connection;
+	}
+}
+
+/*
 void Network::addNode(NetworkNode* node) {
 	// make sure node does not already exist
-	if (nodes_map.find(&node->key) != nodes_map.end()) {
-		throw std::exception("Network addNode Error: Node already exists");
+	if (nodes.contains(node)) {
+		throw std::exception("Network addNode Error: Node already exists with that key type.");
 		return;
 	}
 
-	nodes.insert(*node);
-	nodes_map.insert({ &node->key, node });
+	nodes.insert(node);
 }
 
 void Network::removeNode(NetworkNode* node) {
@@ -175,3 +177,4 @@ void Network::print() {
 		}
 	}
 }
+*/

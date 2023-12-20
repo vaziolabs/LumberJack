@@ -55,4 +55,33 @@ void NetworkNode::print() {
 		std::cout << "\t\t-> " << connection->to->key << std::endl;
 	}
 }
+
+inline std::ostream& operator<<(std::ostream& os, const NetworkNode& obj) {
+	os << obj.key;
+	return os;
+}
+
+inline bool operator==(const NetworkNode& lhs, const NetworkNode& rhs) {
+	return lhs.key == rhs.key;
+}
+
+inline bool operator!=(const NetworkNode& lhs, const NetworkNode& rhs) {
+	return !(lhs.key == rhs.key);
+}
+
+inline bool operator<(const NetworkNode& lhs, const NetworkNode& rhs) {
+	return lhs.key < rhs.key;
+}
+
+inline bool operator>(const NetworkNode& lhs, const NetworkNode& rhs) {
+	return lhs.key > rhs.key;
+}
+
+inline bool operator<=(const NetworkNode& lhs, const NetworkNode& rhs) {
+	return lhs.key <= rhs.key;
+}
+
+inline bool operator>=(const NetworkNode& lhs, const NetworkNode& rhs) {
+	return lhs.key >= rhs.key;
+}
 /**/

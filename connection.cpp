@@ -1,4 +1,5 @@
 #include "connection.h"
+
 Connection::Connection(NetworkNode* from, NetworkNode* to) {
 	this->from = from;
 	this->to = to;

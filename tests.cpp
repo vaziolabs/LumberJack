@@ -135,18 +135,10 @@ void connectionTest() {
 void networkTest() {
 	Network* network = new Network();
 
-	NetworkNode* node_1 = new NetworkNode(1);
-	NetworkNode* node_a = new NetworkNode('a');
-	NetworkNode* node_2 = new NetworkNode("Two");
-	
-	network->addNode(node_1);
-	network->addNode(node_a);
-	network->addNode(node_2);
+	//network->connect(node_1, node_a);
+	//network->connect(node_a, node_2);
 
-	network->connect(node_1, node_a);
-	network->connect(node_a, node_2);
-
-	network->print();
+	//network->print();
 	
 }
 
@@ -168,9 +160,9 @@ void testMain() {
 	//printf("\nNetworkNode tests:\n");
 	//networkNodeTest();
 	
-	printf("\nConnection tests:\n\n");
-	connectionTest();
+	//printf("\nConnection tests:\n\n");
+	//connectionTest();
 
-	//printf("\nNetwork tests:\n");
-	//networkTest();	
+	printf("\nNetwork tests:\n");
+	networkTest();	
 }

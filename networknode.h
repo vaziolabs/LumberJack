@@ -33,5 +33,13 @@ public:
 	void removeConnection(Connector* node);
 
 	void print();
+
+	friend std::ostream& operator<<(std::ostream& os, const NetworkNode& obj);
+	friend bool operator==(const NetworkNode& lhs, const NetworkNode& rhs);
+	friend bool operator!=(const NetworkNode& lhs, const NetworkNode& rhs);
+	friend bool operator<(const NetworkNode& lhs, const NetworkNode& rhs);
+	friend bool operator>(const NetworkNode& lhs, const NetworkNode& rhs);
+	friend bool operator<=(const NetworkNode& lhs, const NetworkNode& rhs);
+	friend bool operator>=(const NetworkNode& lhs, const NetworkNode& rhs);
 };
 /**/
