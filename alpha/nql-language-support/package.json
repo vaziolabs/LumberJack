@@ -1,0 +1,29 @@
+{
+    "name": "nql",
+    "displayName": "NQL",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": ">=0.9.0-pre.1"
+    },
+    "publisher": "Richard Christopher",
+    "contributes": {
+        "languages": [{
+            "id": "nql",
+            "aliases": ["Network Query Language", "NQL", "NQLT", "NQLS"],
+            "extensions": [".nqlt",".nqls"],
+            "configuration": "./syntaxes/nql-language-configuration.json"
+        }],
+        "grammars": [
+            {
+                "language": "nqlt",
+                "scopeName": "source.nqlt",
+                "path": "./syntaxes/nqlt.json"
+            },
+            {
+                "language": "nqls",
+                "scopeName": "source.nqls",
+                "path": "./syntaxes/nqls.json"
+            }
+        ]
+    }
+}

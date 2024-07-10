@@ -1,0 +1,65 @@
+# By Default a Root Network Should be instantiated even if it's not created
+create network "/"
+
+# Should default to / if not explicitly declared
+create graph "First"
+
+create node "First" in g "First"
+
+# Need to have a versitile syntax
+create n graph "First" { node "Second" }
+
+# Should create missing resources
+create graph "First" --node "Third"
+
+# Should attempt to default to last touched graph if not declared
+create connection from node "First" to node "Second"
+
+# Either Syntax should work - this should error Connection Exists in Graph
+create conn graph "First" { node "First" -> node "Second" }
+
+# Must exist within the same scope or error Not Found OR have Scope Defined
+create graph "Second" --nodes "First", "Second" --connections "FtoS": from "First" to "Second"
+
+# Must default to root if not explicitly defined and does not fit
+# within the current scope, and Root must also have declared scope
+#   i.e. you cannot connect graphs that don't share a connection
+#        and connections are uni-directional
+create connection "S1 to F2" from node "Second" in graph "First" to node "First" in graph "Second"
+
+# graphs are private unless explicitly defined
+create connection "G1 to G1" from graph "First" to graph "Second"
+
+# Must default to root if not explicitly defined, and Root must have scope
+# This should succeed now
+create connection "S1 to F2" from node "Second" in graph "First" to node "First" in graph "Second"
+
+# Get Commands
+get network "/"
+
+get graph "First"
+
+get node "First" in graph "First"
+
+get connection "FtoS" in graph "First"
+
+# Set Commands
+set key to 1 in node "First" in graph "First"
+
+set conn "FtoS" key to "1toS"  # Set data for the connection
+
+# Delete Commands
+delete node "First" in graph "First"  # Should error node not found
+delete node 1 in graph "First"  # Should error node not found
+
+# Should error because connection should have been deleted with node
+delete conn "FtoS" in graph "First"
+
+delete conn "S1 to F2"
+
+# Tests
+# Verify the node is deleted
+get n 1 in g "First"
+
+# Verify the connection is deleted
+get connection "S1 to F2" in graph "First"
