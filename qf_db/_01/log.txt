@@ -1,0 +1,10 @@
+2024/06/29 20:05:52 2024-06-29T20:05:52-05:00 [INFO] Unwrapped: declaration(1,2,3), Declarations: [1 2 3], Error: <nil>
+2024/06/29 20:07:26 2024-06-29T20:07:26-05:00 [INFO] Unwrapped: declaration, Declarations: [1 2 3], Error: <nil>
+2024/06/29 20:09:45 2024-06-29T20:09:45-05:00 [INFO] Forks: [fork1  fork2], Error: <nil>
+2024/06/30 12:25:39 2024-06-30T12:25:39-05:00 [INFO] Chains: [chain1 chain2 chain3], Error: <nil>
+2024/06/30 12:26:20 2024-06-30T12:26:20-05:00 [INFO] Chains: [chain1 {fork1,fork2} chain3], Error: <nil>
+2024/06/30 12:27:49 2024-06-30T12:27:49-05:00 [INFO] Chains: [chain1 {fork1,fork2} [distribution1(d1,d2)] {fork3,fork4 [distribution2(chain3,chain4)]} leaf_node], Error: <nil>
+2024/07/09 20:46:00 2024-07-09T20:46:00-05:00 [INFO] Branches: [], Error: <nil>
+2024/07/09 20:46:00 2024-07-09T20:46:00-05:00 [INFO] Branches: [], Error: <nil>
+2024/07/09 20:52:17 2024-07-09T20:52:17-05:00 [INFO] Branches: [], Error: <nil>
+2024/07/09 20:52:17 2024-07-09T20:52:17-05:00 [INFO] Branches: [], Error: <nil>
