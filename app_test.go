@@ -38,7 +38,7 @@ func setupTestForest(t *testing.T) *App {
 	app := NewApp()
 	logger := newTestLogger(t)
 	logger.info("Setting up test forest")
-	root := app.forest
+	root := app.Forest
 
 	// Create basic structure with admin user
 	root.ID = "root"
@@ -62,7 +62,7 @@ func setupTestForest(t *testing.T) *App {
 	root.AddChild(testNode)
 
 	// Save initial state
-	if err := app.WriteChangesToFile(app.forest, testStateFile); err != nil {
+	if err := app.WriteChangesToFile(app.Forest, testStateFile); err != nil {
 		logger.failure("Failed to write initial state: %v", err)
 	} else {
 		logger.success("Saved initial state to file")
@@ -78,7 +78,7 @@ func TestForestOperations(t *testing.T) {
 	logger.enter("ForestOperations")
 	defer logger.exit("ForestOperations")
 
-	rootNode := app.forest
+	rootNode := app.Forest
 
 	logger.enter("Node Creation")
 	childNode1 := forestree.NewNode(forestree.BranchNode, "child1")
@@ -419,7 +419,7 @@ func TestHandleAssignUser(t *testing.T) {
 	}
 
 	// Save state
-	if err := app.WriteChangesToFile(app.forest, testStateFile); err != nil {
+	if err := app.WriteChangesToFile(app.Forest, testStateFile); err != nil {
 		logger.failure("Failed to save state: %v", err)
 		t.Fatalf("Failed to save state: %v", err)
 	} else {
@@ -708,7 +708,7 @@ func TestHandleAppendToEventWithCategories(t *testing.T) {
 	workoutNode.Users = []forestree.User{adminUser}
 
 	// Set up node hierarchy
-	app.forest.AddChild(healthNode)
+	app.Forest.AddChild(healthNode)
 	healthNode.AddChild(exerciseNode)
 	exerciseNode.AddChild(workoutNode)
 
@@ -773,7 +773,7 @@ func TestHandlePlanEvent(t *testing.T) {
 	languagesNode := forestree.NewNode(forestree.BranchNode, "languages")
 	spanishNode := forestree.NewNode(forestree.LeafNode, "spanish")
 
-	app.forest.Children["study"] = studyNode
+	app.Forest.Children["study"] = studyNode
 	studyNode.Children["languages"] = languagesNode
 	languagesNode.Children["spanish"] = spanishNode
 
@@ -818,7 +818,7 @@ func TestMultipleParentNodes(t *testing.T) {
 	defer logger.exit("MultipleParentNodes")
 
 	app := setupTestForest(t)
-	root := app.forest
+	root := app.Forest
 
 	// Create branch structure for multiple paths to savings
 	lifeNode := forestree.NewNode(forestree.BranchNode, "life")

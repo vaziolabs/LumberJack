@@ -29,7 +29,7 @@ const (
 // NewNode creates a new node with updated fields
 func NewNode(nodeType NodeType, name string) *Node {
 	return &Node{
-		ID:            generateID(),
+		ID:            GenerateID(),
 		Type:          nodeType,
 		Name:          name,
 		Parents:       make(map[string]string),

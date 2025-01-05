@@ -2,11 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -21,35 +19,35 @@ import (
 // Initialize the application
 func NewApp() *internal.App {
 	return &internal.App{
-		forest: core.NewForest("root"),
-		jwtConfig: internal.JWTConfig{
+		Forest: core.NewForest("root"),
+		JWTConfig: internal.JWTConfig{
 			SecretKey: []byte("your-secret-key"),
 			ExpiresIn: 24 * time.Hour,
 		},
-		logger: internal.NewLogger(),
+		Logger: internal.NewLogger(),
 	}
 }
 
 // Start the HTTP server
-func (app *App) StartServer() *http.Server {
+func StartServer(app *internal.App) *http.Server {
 	router := mux.NewRouter()
 
 	// Public routes
-	router.HandleFunc("/login", app.handleLogin).Methods("POST")
-	router.HandleFunc("/create_user", app.handleCreateUser).Methods("POST")
+	router.HandleFunc("/login", app.HandleLogin).Methods("POST")
+	router.HandleFunc("/create_user", app.HandleCreateUser).Methods("POST")
 
 	// Protected routes
-	router.HandleFunc("/end_event", app.authMiddleware(app.handleEndEvent)).Methods("POST")
-	router.HandleFunc("/append_event", app.authMiddleware(app.handleAppendToEvent)).Methods("POST")
-	router.HandleFunc("/start_event", app.authMiddleware(app.handleStartEvent)).Methods("POST")
-	router.HandleFunc("/get_event_entries", app.authMiddleware(app.handleGetEventEntries)).Methods("POST")
-	router.HandleFunc("/plan_event", app.authMiddleware(app.handlePlanEvent)).Methods("POST")
-	router.HandleFunc("/assign_user", app.authMiddleware(app.handleAssignUser)).Methods("POST")
-	router.HandleFunc("/start_time_tracking", app.authMiddleware(app.handleStartTimeTracking)).Methods("POST")
-	router.HandleFunc("/stop_time_tracking", app.authMiddleware(app.handleStopTimeTracking)).Methods("POST")
-	router.HandleFunc("/get_time_tracking", app.authMiddleware(app.handleGetTimeTracking)).Methods("GET")
-	router.HandleFunc("/get_tree", app.authMiddleware(app.handleGetTree)).Methods("GET")
-	router.HandleFunc("/get_users", app.authMiddleware(app.handleGetUsers)).Methods("GET")
+	router.HandleFunc("/end_event", app.AuthMiddleware(app.HandleEndEvent)).Methods("POST")
+	router.HandleFunc("/append_event", app.AuthMiddleware(app.HandleAppendToEvent)).Methods("POST")
+	router.HandleFunc("/start_event", app.AuthMiddleware(app.HandleStartEvent)).Methods("POST")
+	router.HandleFunc("/get_event_entries", app.AuthMiddleware(app.HandleGetEventEntries)).Methods("POST")
+	router.HandleFunc("/plan_event", app.AuthMiddleware(app.HandlePlanEvent)).Methods("POST")
+	router.HandleFunc("/assign_user", app.AuthMiddleware(app.HandleAssignUser)).Methods("POST")
+	router.HandleFunc("/start_time_tracking", app.AuthMiddleware(app.HandleStartTimeTracking)).Methods("POST")
+	router.HandleFunc("/stop_time_tracking", app.AuthMiddleware(app.HandleStopTimeTracking)).Methods("POST")
+	router.HandleFunc("/get_time_tracking", app.AuthMiddleware(app.HandleGetTimeTracking)).Methods("GET")
+	router.HandleFunc("/get_tree", app.AuthMiddleware(app.HandleGetTree)).Methods("GET")
+	router.HandleFunc("/get_users", app.AuthMiddleware(app.HandleGetUsers)).Methods("GET")
 
 	return &http.Server{
 		Handler: router,
@@ -59,7 +57,7 @@ func (app *App) StartServer() *http.Server {
 
 func main() {
 	app := NewApp()
-	apiServer := app.StartServer()
+	apiServer := StartServer(app)
 
 	// Start the dashboard server in a goroutine
 	dashboardServer := dashboard.NewDashboardServer("http://localhost:8080")
@@ -70,41 +68,15 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	<-quit
-	app.logger.Info("Shutting down servers...")
+	app.Logger.Info("Shutting down servers...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := apiServer.Shutdown(ctx); err != nil {
-		app.logger.Failure("API server forced to shutdown: %v", err)
+		app.Logger.Failure("API server forced to shutdown: %v", err)
 	}
 
-	app.logger.Success("Servers exited properly")
+	app.Logger.Success("Servers exited properly")
 	os.Exit(0)
-}
-
-// getNodeFromPath traverses the forest to find a node by its path
-func (app *App) getNodeFromPath(path string) (*forestree.Node, error) {
-	if path == "" {
-		return app.forest, nil
-	}
-
-	parts := strings.Split(path, "/")
-	current := app.forest
-
-	for _, part := range parts {
-		found := false
-		for _, child := range current.Children {
-			if child.Name == part {
-				current = child
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("node not found: %s", path)
-		}
-	}
-
-	return current, nil
 }

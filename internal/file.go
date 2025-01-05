@@ -5,16 +5,17 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"forestree"
 	"io"
 	"log"
 	"os"
+
+	"github.com/vaziolabs/LumberJack/internal/core"
 )
 
 // loadFromFile loads the forest data from the file.
 func (app *App) loadFromFile(filename string) error {
 	// Here, load and verify the data, decompress, and unmarshal the forest data from the file
-	var loadedForest forestree.Node
+	var loadedForest core.Node
 
 	err := app.ReadChangesFromFile(filename, &loadedForest)
 	if err != nil {
@@ -22,14 +23,14 @@ func (app *App) loadFromFile(filename string) error {
 	}
 
 	// Assign the loaded forest data to the app's forest
-	app.forest = &loadedForest
+	app.Forest = &loadedForest
 	return nil
 }
 
 // LoadStateFromFile loads the forest state from a file
 func (app *App) LoadStateFromFile(filename string) error {
-	app.mutex.Lock()
-	defer app.mutex.Unlock()
+	app.Mutex.Lock()
+	defer app.Mutex.Unlock()
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -41,7 +42,7 @@ func (app *App) LoadStateFromFile(filename string) error {
 	decoder := json.NewDecoder(file)
 
 	// Decode into the app's forest
-	if err := decoder.Decode(&app.forest); err != nil {
+	if err := decoder.Decode(&app.Forest); err != nil {
 		return fmt.Errorf("failed to decode state file: %v", err)
 	}
 
@@ -52,8 +53,8 @@ func (app *App) LoadStateFromFile(filename string) error {
 // TODO: Encrypt this
 // Function to write changes to an encrypted state file
 func (app *App) WriteChangesToFile(data interface{}, filename string) error {
-	app.mutex.Lock()
-	defer app.mutex.Unlock()
+	app.Mutex.Lock()
+	defer app.Mutex.Unlock()
 
 	// Marshal the data to JSON
 	jsonData, err := json.Marshal(data)

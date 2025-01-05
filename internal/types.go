@@ -1,10 +1,10 @@
 package internal
 
 import (
-	"forestree"
-	"logger"
 	"sync"
 	"time"
+
+	"github.com/vaziolabs/LumberJack/internal/core"
 )
 
 // JWTConfig holds JWT configuration
@@ -15,8 +15,8 @@ type JWTConfig struct {
 
 // App represents the main application structure
 type App struct {
-	forest    *forestree.Node
-	mutex     sync.Mutex
-	jwtConfig JWTConfig
-	logger    logger.Logger
+	Forest    *core.Node
+	Mutex     sync.Mutex
+	JWTConfig JWTConfig
+	Logger    Logger
 }

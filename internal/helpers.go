@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/vaziolabs/LumberJack/internal/core"
 )
 
 // compares two byte slices for equality
@@ -23,7 +24,7 @@ func compareHashes(a, b []byte) bool {
 }
 
 // Add middleware for authentication
-func (app *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func (app *App) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenString := r.Header.Get("Authorization")
 		if tokenString == "" {
@@ -38,7 +39,7 @@ func (app *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return app.jwtConfig.SecretKey, nil
+			return app.JWTConfig.SecretKey, nil
 		})
 
 		if err != nil || !token.Valid {
@@ -56,4 +57,30 @@ func (app *App) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		ctx := context.WithValue(r.Context(), "user_id", claims["user_id"])
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// getNodeFromPath traverses the forest to find a node by its path
+func (app *App) getNodeFromPath(path string) (*core.Node, error) {
+	if path == "" {
+		return app.Forest, nil
+	}
+
+	parts := strings.Split(path, "/")
+	current := app.Forest
+
+	for _, part := range parts {
+		found := false
+		for _, child := range current.Children {
+			if child.Name == part {
+				current = child
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("node not found: %s", path)
+		}
+	}
+
+	return current, nil
 }

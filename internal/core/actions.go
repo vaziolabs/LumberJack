@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-// generateID generates a unique ID for a user
-func generateID() string {
+// GenerateID generates a unique ID for a user
+func GenerateID() string {
 	return fmt.Sprintf("user-%d", time.Now().UnixNano())
 }
 
