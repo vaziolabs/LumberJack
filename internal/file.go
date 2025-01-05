@@ -9,7 +9,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/vaziolabs/LumberJack/internal/core"
+	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
 // loadFromFile loads the forest data from the file.

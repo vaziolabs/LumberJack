@@ -1,4 +1,4 @@
-module github.com/vaziolabs/LumberJack
+module github.com/vaziolabs/lumberjack
 
 go 1.23.2
 

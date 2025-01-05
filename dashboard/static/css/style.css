@@ -159,3 +159,9 @@ body {
     background: #ddd;
     color: #333;
 }
+
+.logo {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
+}

@@ -1,6 +1,6 @@
 package main
 
-import "github.com/vaziolabs/LumberJack/cmd"
+import "github.com/vaziolabs/lumberjack/cmd"
 
 func main() {
 	cmd.Execute()

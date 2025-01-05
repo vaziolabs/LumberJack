@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaziolabs/LumberJack/internal/core"
+	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
 var (
@@ -38,6 +38,7 @@ func setupTestForest(t *testing.T) *Server {
 	server := NewServer("8080")
 	logger := NewLogger()
 	logger.Enter("Setting up test forest")
+	defer logger.Exit("Setting up test forest")
 	root := server.forest
 
 	// Create basic structure with admin user
@@ -73,231 +74,253 @@ func setupTestForest(t *testing.T) *Server {
 }
 
 func TestForestOperations(t *testing.T) {
-	server := setupTestForest(t)
 	logger := NewLogger()
 	logger.Enter("ForestOperations")
 	defer logger.Exit("ForestOperations")
 
+	// Setup test server
+	server := setupTestForest(t)
 	rootNode := server.forest
 
-	logger.Enter("Node Creation")
-	childNode1 := core.NewNode(core.BranchNode, "child1")
-	childNode1.ID = "child1"
-	childNode2 := core.NewNode(core.LeafNode, "child2")
-	childNode2.ID = "child2"
-	childNode3 := core.NewNode(core.LeafNode, "child3")
-	childNode3.ID = "child3"
+	t.Run("Node Creation", func(t *testing.T) {
+		logger.Enter("Node Creation")
+		defer logger.Exit("Node Creation")
 
-	rootNode.Children[childNode1.ID] = childNode1
-	rootNode.Children[childNode2.ID] = childNode2
-	rootNode.Children[childNode3.ID] = childNode3
+		childNode1 := core.NewNode(core.BranchNode, "child1")
+		childNode1.ID = "child1"
+		childNode2 := core.NewNode(core.LeafNode, "child2")
+		childNode2.ID = "child2"
+		childNode3 := core.NewNode(core.LeafNode, "child3")
+		childNode3.ID = "child3"
 
-	if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
-		logger.Failure("Failed to write state to file: %v", err)
-	} else {
-		logger.Success("State saved to file")
-	}
+		rootNode.Children[childNode1.ID] = childNode1
+		rootNode.Children[childNode2.ID] = childNode2
+		rootNode.Children[childNode3.ID] = childNode3
 
-	// Verify the node structure
-	if len(rootNode.Children) != 4 {
-		logger.Failure("Expected 4 children, got %d", len(rootNode.Children))
-		t.Errorf("Expected 4 children, got %d", len(rootNode.Children))
-	} else {
-		logger.Success("Found 4 children")
-		// Log the children
-		for _, child := range rootNode.Children {
-			logger.Info("Child: %s", child.Name)
+		if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+			logger.Failure("Failed to write state to file: %v", err)
+			t.Errorf("Failed to write state to file: %v", err)
+		} else {
+			logger.Success("State saved to file")
 		}
-	}
-	logger.Exit("Node Creation")
 
-	logger.Enter("Adding Users")
-	// Test user assignment and permission checking
-	user1 := core.User{ID: "user1", Permissions: []core.Permission{core.ReadPermission, core.WritePermission}}
-	user2 := core.User{ID: "user2", Permissions: []core.Permission{core.ReadPermission}}
-	user3 := core.User{ID: "user3", Permissions: []core.Permission{core.AdminPermission}}
+		if len(rootNode.Children) != 4 {
+			logger.Failure("Expected 4 children, got %d", len(rootNode.Children))
+			t.Errorf("Expected 4 children, got %d", len(rootNode.Children))
+		} else {
+			logger.Success("Found 4 children")
+			for _, child := range rootNode.Children {
+				logger.Info("Child: %s", child.Name)
+			}
+		}
+	})
 
-	if err := childNode2.AssignUser(user1, core.ReadPermission); err != nil {
-		logger.Failure("Failed to assign user1 to childNode2: %v", err)
-		t.Error(err)
-	} else {
-		logger.Success("User1 assigned to childNode2")
-	}
-	if err := childNode2.AssignUser(user2, core.ReadPermission); err != nil {
-		logger.Failure("Failed to assign user2 to childNode2: %v", err)
-		t.Error(err)
-	} else {
-		logger.Success("User2 assigned to childNode2")
-	}
-	if err := childNode3.AssignUser(user3, core.AdminPermission); err != nil {
-		logger.Failure("Failed to assign user3 to childNode3: %v", err)
-		t.Error(err)
-	} else {
-		logger.Success("User3 assigned to childNode3")
-	}
-	logger.Exit("Adding Users")
+	t.Run("User Management", func(t *testing.T) {
+		logger.Enter("User Management")
+		defer logger.Exit("User Management")
 
-	// Check permissions
-	if !childNode2.CheckPermission("user1", core.ReadPermission) {
-		logger.Failure("user1 should have read permission on childNode2")
-		t.Errorf("user1 should have read permission on childNode2")
-	} else if !childNode3.CheckPermission("user3", core.AdminPermission) {
-		logger.Failure("user3 should have admin permission on childNode3")
-		t.Errorf("user3 should have admin permission on childNode3")
-	} else if childNode2.CheckPermission("user2", core.WritePermission) {
-		logger.Failure("user2 should not have write permission on childNode2")
-		t.Errorf("user2 should not have write permission on childNode2")
-	} else {
-		logger.Success("Permission checks passed successfully")
-	}
+		user1 := core.User{ID: "user1", Permissions: []core.Permission{core.ReadPermission, core.WritePermission}}
+		user2 := core.User{ID: "user2", Permissions: []core.Permission{core.ReadPermission}}
+		user3 := core.User{ID: "user3", Permissions: []core.Permission{core.AdminPermission}}
 
-	logger.Enter("Event Management")
-	logger.Info("Starting Event 1")
-	// Test event management
-	now := time.Now()
-	event1ID := "event1"
-	if err := childNode2.StartEvent(event1ID, &now, nil, map[string]interface{}{"title": "Test Event 1"}); err != nil {
-		logger.Failure("Failed to start event: %v", err)
-		t.Error(err)
-	} else {
-		logger.Success("Event started successfully")
-	}
+		childNode2 := rootNode.Children["child2"]
+		childNode3 := rootNode.Children["child3"]
 
-	logger.Info("Appending Entry to Event 1")
-	if err := childNode2.AppendToEvent(event1ID, "Event entry 1", map[string]interface{}{"note": "First entry"}, "user1"); err != nil {
-		logger.Failure("Failed to append to event: %v", err)
-		t.Errorf("Failed to append to event: %v", err)
-	} else {
-		logger.Success("Appended entry to event")
-	}
+		if err := childNode2.AssignUser(user1, core.ReadPermission); err != nil {
+			logger.Failure("Failed to assign user1 to childNode2: %v", err)
+			t.Error(err)
+		} else {
+			logger.Success("User1 assigned to childNode2")
+		}
 
-	logger.Info("Ending Event 1")
-	if err := childNode2.EndEvent(event1ID); err != nil {
-		logger.Failure("Failed to end event: %v", err)
-		t.Errorf("Failed to end event: %v", err)
-	} else {
-		logger.Success("Event ended successfully")
-	}
+		if err := childNode2.AssignUser(user2, core.ReadPermission); err != nil {
+			logger.Failure("Failed to assign user2 to childNode2: %v", err)
+			t.Error(err)
+		} else {
+			logger.Success("User2 assigned to childNode2")
+		}
 
-	// Verify event storage and persistence
-	originalEvent, exists := childNode2.Events[event1ID]
-	if !exists {
-		logger.Failure("Event %s not found in storage", event1ID)
-		t.Errorf("Event %s not found in storage", event1ID)
-	} else {
-		logger.Success("Event found in storage")
-	}
+		if err := childNode3.AssignUser(user3, core.AdminPermission); err != nil {
+			logger.Failure("Failed to assign user3 to childNode3: %v", err)
+			t.Error(err)
+		} else {
+			logger.Success("User3 assigned to childNode3")
+		}
 
-	if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
-		logger.Failure("Failed to write state to file: %v", err)
-	} else {
-		logger.Success("State saved to file")
-	}
+		// Check permissions
+		if !childNode2.CheckPermission("user1", core.ReadPermission) {
+			logger.Failure("user1 should have read permission on childNode2")
+			t.Error("user1 should have read permission on childNode2")
+		} else if !childNode3.CheckPermission("user3", core.AdminPermission) {
+			logger.Failure("user3 should have admin permission on childNode3")
+			t.Error("user3 should have admin permission on childNode3")
+		} else if childNode2.CheckPermission("user2", core.WritePermission) {
+			logger.Failure("user2 should not have write permission on childNode2")
+			t.Error("user2 should not have write permission on childNode2")
+		} else {
+			logger.Success("Permission checks passed successfully")
+		}
+	})
 
-	// Get the stored event after reload
-	storedEvent, exists := childNode2.Events[event1ID]
-	if !exists {
-		logger.Failure("Event %s not found in storage after reload", event1ID)
-		t.Errorf("Event %s not found in storage after reload", event1ID)
-	} else {
-		logger.Success("Event found in storage after reload")
-	}
+	t.Run("Event Management", func(t *testing.T) {
+		logger.Enter("Event Management")
+		defer logger.Exit("Event Management")
 
-	// Verify event properties against the original stored version
-	if !storedEvent.StartTime.Equal(*originalEvent.StartTime) {
-		logger.Failure("Start time mismatch after storage: expected %v, got %v",
-			originalEvent.StartTime, storedEvent.StartTime)
-		t.Errorf("Start time mismatch after storage: expected %v, got %v",
-			originalEvent.StartTime, storedEvent.StartTime)
-	} else {
-		logger.Success("Event start time is correct")
-	}
+		childNode2 := rootNode.Children["child2"]
+		now := time.Now()
+		event1ID := "event1"
 
-	logger.Info("Getting Event Summary")
-	// Get the event summary
-	eventSummary, err := childNode2.GetEventSummary(event1ID)
-	if err != nil {
-		logger.Failure("Failed to get event summary: %v", err)
-		t.Errorf("Failed to get event summary: %v", err)
-	} else if eventSummary.Status != core.EventFinished {
-		logger.Failure("Expected event status to be 'finished', got '%s'", eventSummary.Status)
-		t.Errorf("Expected event status to be 'finished', got '%s'", eventSummary.Status)
-	} else if eventSummary.EntriesCount != 1 {
-		logger.Failure("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
-		t.Errorf("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
-	} else {
-		logger.Success("Event summary is correct")
-	}
+		logger.Info("Starting Event 1")
+		if err := childNode2.StartEvent(event1ID, &now, nil, map[string]interface{}{"title": "Test Event 1"}); err != nil {
+			logger.Failure("Failed to start event: %v", err)
+			t.Error(err)
+		} else {
+			logger.Success("Event started successfully")
+		}
 
-	// Test planned events
-	event2ID := "event2"
-	plannedStart := now.Add(time.Hour)
-	plannedEnd := now.Add(2 * time.Hour)
-	if err := childNode2.PlanEvent(event2ID, &plannedStart, &plannedEnd, map[string]interface{}{"title": "Test Event 2"}); err != nil {
-		logger.Failure("Failed to plan event: %v", err)
-		t.Errorf("Failed to plan event: %v", err)
-	} else {
-		logger.Success("Planned event successfully")
-	}
+		logger.Info("Appending Entry to Event 1")
+		if err := childNode2.AppendToEvent(event1ID, "Event entry 1", map[string]interface{}{"note": "First entry"}, "user1"); err != nil {
+			logger.Failure("Failed to append to event: %v", err)
+			t.Errorf("Failed to append to event: %v", err)
+		} else {
+			logger.Success("Appended entry to event")
+		}
 
-	// Compare planned vs actual events
-	match, err := childNode2.CompareEvents(event2ID, event1ID)
-	if match {
-		logger.Failure("Expected events to not match, but they did")
-		t.Errorf("Expected events to not match, but they did")
-	} else {
-		logger.Success("Found expected differences: %s", err)
-	}
+		logger.Info("Ending Event 1")
+		if err := childNode2.EndEvent(event1ID); err != nil {
+			logger.Failure("Failed to end event: %v", err)
+			t.Errorf("Failed to end event: %v", err)
+		} else {
+			logger.Success("Event ended successfully")
+		}
 
-	// Test time tracking
-	start_entry := childNode2.StartTimeTracking("user1")
-	if start_entry == nil {
-		logger.Failure("Failed to start time tracking")
-		t.Error("Failed to start time tracking")
-	} else {
-		logger.Success("Time tracking started")
-	}
+		// Verify event storage and persistence
+		originalEvent, exists := childNode2.Events[event1ID]
+		if !exists {
+			logger.Failure("Event %s not found in storage", event1ID)
+			t.Errorf("Event %s not found in storage", event1ID)
+		} else {
+			logger.Success("Event found in storage")
+		}
 
-	end_entry := childNode2.StopTimeTracking("user1")
-	if end_entry == nil {
-		logger.Failure("Failed to stop time tracking")
-		t.Error("Failed to stop time tracking")
-	} else {
-		logger.Success("Time tracking stopped")
-	}
+		if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+			logger.Failure("Failed to write state to file: %v", err)
+		} else {
+			logger.Success("State saved to file")
+		}
 
-	summary := childNode2.GetTimeTrackingSummary("user1")
-	if len(summary) != 1 {
-		logger.Failure("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
-		t.Errorf("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
-	} else {
-		logger.Success("Time tracking summary is correct")
-	}
-	logger.Exit("Time Tracking")
+		// Get the stored event after reload
+		storedEvent, exists := childNode2.Events[event1ID]
+		if !exists {
+			logger.Failure("Event %s not found in storage after reload", event1ID)
+			t.Errorf("Event %s not found in storage after reload", event1ID)
+		} else {
+			logger.Success("Event found in storage after reload")
+		}
 
-	logger.Enter("Persistence Verification")
-	if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
-		logger.Failure("Failed to save final state: %v", err)
-		t.Error(err)
-	} else {
-		logger.Success("State saved successfully")
-	}
+		// Verify event properties
+		if !storedEvent.StartTime.Equal(*originalEvent.StartTime) {
+			logger.Failure("Start time mismatch after storage: expected %v, got %v",
+				originalEvent.StartTime, storedEvent.StartTime)
+			t.Errorf("Start time mismatch after storage: expected %v, got %v",
+				originalEvent.StartTime, storedEvent.StartTime)
+		} else {
+			logger.Success("Event start time is correct")
+		}
 
-	// Create new app and load state
-	newApp := NewServer("8080")
-	var loadedForest core.Node
-	if err := newApp.readChangesFromFile(testStateFile, &loadedForest); err != nil {
-		t.Fatalf("Failed to load state from file: %v", err)
-	}
-	newApp.forest = &loadedForest
+		logger.Info("Getting Event Summary")
+		eventSummary, err := childNode2.GetEventSummary(event1ID)
+		if err != nil {
+			logger.Failure("Failed to get event summary: %v", err)
+			t.Errorf("Failed to get event summary: %v", err)
+		} else if eventSummary.Status != core.EventFinished {
+			logger.Failure("Expected event status to be 'finished', got '%s'", eventSummary.Status)
+			t.Errorf("Expected event status to be 'finished', got '%s'", eventSummary.Status)
+		} else if eventSummary.EntriesCount != 1 {
+			logger.Failure("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
+			t.Errorf("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
+		} else {
+			logger.Success("Event summary is correct")
+		}
 
-	// Verify the loaded forest
-	if _, err := newApp.forest.GetNode(childNode2.ID); err != nil {
-		t.Errorf("Failed to find childNode2 in the loaded forest: %v", err)
-	} else {
-		logger.Success("Found childNode2 in the loaded forest")
-	}
-	logger.Exit("Persistence Verification")
+		// Test planned events
+		event2ID := "event2"
+		plannedStart := now.Add(time.Hour)
+		plannedEnd := now.Add(2 * time.Hour)
+		if err := childNode2.PlanEvent(event2ID, &plannedStart, &plannedEnd, map[string]interface{}{"title": "Test Event 2"}); err != nil {
+			logger.Failure("Failed to plan event: %v", err)
+			t.Errorf("Failed to plan event: %v", err)
+		} else {
+			logger.Success("Planned event successfully")
+		}
+
+		// Compare planned vs actual events
+		match, err := childNode2.CompareEvents(event2ID, event1ID)
+		if match {
+			logger.Failure("Expected events to not match, but they did")
+			t.Errorf("Expected events to not match, but they did")
+		} else {
+			logger.Success("Found expected differences: %s", err)
+		}
+	})
+
+	t.Run("Time Tracking", func(t *testing.T) {
+		logger.Enter("Time Tracking")
+		defer logger.Exit("Time Tracking")
+
+		childNode2 := rootNode.Children["child2"]
+
+		start_entry := childNode2.StartTimeTracking("user1")
+		if start_entry == nil {
+			logger.Failure("Failed to start time tracking")
+			t.Error("Failed to start time tracking")
+		} else {
+			logger.Success("Time tracking started")
+		}
+
+		end_entry := childNode2.StopTimeTracking("user1")
+		if end_entry == nil {
+			logger.Failure("Failed to stop time tracking")
+			t.Error("Failed to stop time tracking")
+		} else {
+			logger.Success("Time tracking stopped")
+		}
+
+		summary := childNode2.GetTimeTrackingSummary("user1")
+		if len(summary) != 1 {
+			logger.Failure("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
+			t.Errorf("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
+		} else {
+			logger.Success("Time tracking summary is correct")
+		}
+	})
+
+	t.Run("Persistence Verification", func(t *testing.T) {
+		logger.Enter("Persistence Verification")
+		defer logger.Exit("Persistence Verification")
+
+		if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+			logger.Failure("Failed to save final state: %v", err)
+			t.Error(err)
+		} else {
+			logger.Success("State saved successfully")
+		}
+
+		// Create new app and load state
+		newApp := NewServer("8080")
+		var loadedForest core.Node
+		if err := newApp.readChangesFromFile(testStateFile, &loadedForest); err != nil {
+			t.Fatalf("Failed to load state from file: %v", err)
+		}
+		newApp.forest = &loadedForest
+
+		// Verify the loaded forest
+		if _, err := newApp.forest.GetNode("child2"); err != nil {
+			t.Errorf("Failed to find childNode2 in the loaded forest: %v", err)
+		} else {
+			logger.Success("Found childNode2 in the loaded forest")
+		}
+	})
 }
 
 func TestJsonSerialization(t *testing.T) {
@@ -975,4 +998,57 @@ func TestUserCreationAndAuthentication(t *testing.T) {
 	}
 	logger.Exit("Failed Login Test")
 	logger.Exit("Login Tests")
+}
+
+func TestErrorHandling(t *testing.T) {
+	t.Run("Invalid Node Operations", func(t *testing.T) {
+		// Test node operations with invalid paths
+		// Test deleting non-existent nodes
+		// Test circular references
+	})
+
+	t.Run("Concurrent Operations", func(t *testing.T) {
+		// Test concurrent event creation
+		// Test concurrent user assignments
+		// Test race conditions
+	})
+
+	t.Run("Permission Boundaries", func(t *testing.T) {
+		// Test permission inheritance
+		// Test permission conflicts
+		// Test permission revocation
+	})
+}
+
+func TestDataValidation(t *testing.T) {
+	t.Run("Input Validation", func(t *testing.T) {
+		// Test invalid event IDs
+		// Test malformed timestamps
+		// Test invalid metadata
+	})
+
+	t.Run("State Validation", func(t *testing.T) {
+		// Test corrupted state files
+		// Test incomplete state recovery
+		// Test version migrations
+	})
+}
+
+func TestAPIEndpoints(t *testing.T) {
+	t.Run("Authentication", func(t *testing.T) {
+		// Test invalid tokens
+		// Test expired tokens
+		// Test token refresh
+	})
+
+	t.Run("Rate Limiting", func(t *testing.T) {
+		// Test request throttling
+		// Test concurrent requests
+	})
+}
+
+func TestMetrics(t *testing.T) {
+	// Test performance metrics
+	// Test resource usage
+	// Test operation timing
 }

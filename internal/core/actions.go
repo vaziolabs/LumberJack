@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"log"
 	"time"
 )
 
@@ -124,15 +123,9 @@ func (n *Node) PlanEvent(eventID string, plannedStart, plannedEnd *time.Time, me
 
 // CheckPermission checks if a user has permission to perform an action on the node
 func (n *Node) CheckPermission(userID string, permission Permission) bool {
-	log.Println("Checking Permissions")
 	for _, user := range n.Users {
-		log.Printf("Checking %+v", user)
-
 		if user.ID == userID {
-			log.Printf("checking %s against %s", user.ID, userID)
-
 			for _, perm := range user.Permissions {
-				log.Printf("Checking %s for %d == %d", userID, perm, permission)
 
 				if perm == permission {
 					return true
@@ -145,8 +138,6 @@ func (n *Node) CheckPermission(userID string, permission Permission) bool {
 
 // AssignUser assigns a user to the node with permission checking
 func (n *Node) AssignUser(user User, permission Permission) error {
-	log.Println("Assigning User")
-
 	// Check if the user already exists in the node
 	for i, existingUser := range n.Users {
 		if existingUser.ID == user.ID {
@@ -157,7 +148,6 @@ func (n *Node) AssignUser(user User, permission Permission) error {
 			}
 			// Add the new permission to the existing user's permissions
 			n.Users[i].Permissions = append(n.Users[i].Permissions, permission)
-			log.Printf("Granted %d permission to user %s", permission, user.Username)
 			return nil
 		}
 	}
@@ -165,7 +155,6 @@ func (n *Node) AssignUser(user User, permission Permission) error {
 	// If the user does not exist, add them to the node with the specified permission
 	user.Permissions = []Permission{permission}
 	n.Users = append(n.Users, user)
-	log.Printf("Added user %s with %d permission", user.Username, permission)
 	return nil
 }
 

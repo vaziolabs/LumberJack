@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/vaziolabs/LumberJack/internal/core"
+	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
 // compares two byte slices for equality

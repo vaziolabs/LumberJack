@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/vaziolabs/LumberJack/internal/core"
+	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
 func NewServer(port string) *Server {

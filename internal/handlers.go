@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/vaziolabs/LumberJack/internal/core"
+	"github.com/vaziolabs/lumberjack/internal/core"
 
 	"github.com/golang-jwt/jwt"
 )

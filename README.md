@@ -3,6 +3,16 @@
 ## Overview
 The LumberJack API provides a hierarchical event tracking system where nodes can have multiple parents and events can be tracked across different organizational paths.
 
+## TODOS:
+ - [ ] Improved Testing
+    - [ ] Remove redundant tests
+    - [ ] Finish incomplete tests
+ - [ ] Adding Core Logger
+ - [ ] Fix Multiple Databases and configs
+ - [ ] Test Dashboard
+ - [ ] Create Typescript module
+ - [ ] have CLI daemonize API and Dashboard
+
 ## Core Concepts
 
 ### Nodes

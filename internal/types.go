@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vaziolabs/LumberJack/internal/core"
+	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
 // JWTConfig holds JWT configuration

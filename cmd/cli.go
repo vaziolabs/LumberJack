@@ -14,8 +14,8 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/vaziolabs/LumberJack/dashboard"
-	"github.com/vaziolabs/LumberJack/internal"
+	"github.com/vaziolabs/lumberjack/dashboard"
+	"github.com/vaziolabs/lumberjack/internal"
 )
 
 type Config struct {
@@ -36,6 +36,10 @@ var (
 		Short: "LumberJack - Event tracking and management system",
 		Run: func(cmd *cobra.Command, args []string) {
 			if exists := configExists(); !exists {
+				asciiArt, err := os.ReadFile("cmd/cli.ascii")
+				if err == nil {
+					fmt.Println(string(asciiArt))
+				}
 				createConfig(cmd, args)
 			} else {
 				startServer(cmd, args)
