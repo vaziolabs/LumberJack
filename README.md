@@ -1,6 +1,6 @@
 # LumberJack API Documentation
 
-![jumberjacklogo500](https://github.com/user-attachments/assets/293fefdd-2868-4b54-94bd-fc98d0e83e28)
+![lumberjack500](https://github.com/user-attachments/assets/1f1c2f9e-a550-47eb-8f18-a11abbc1cf58)
 
 ## Overview
 The LumberJack API provides a hierarchical event tracking system where nodes can have multiple parents and events can be tracked across different organizational paths.
