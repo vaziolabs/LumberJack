@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"forestree"
+	"github.com/vaziolabs/LumberJack/internal/core"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 
 func TestMain(m *testing.M) {
 	// Setup test environment
-	tmpDir, err := os.MkdirTemp("", "forestree-test-*")
+	tmpDir, err := os.MkdirTemp("", "core-test-*")
 	if err != nil {
 		log.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -34,206 +34,199 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func setupTestForest(t *testing.T) *App {
-	app := NewApp()
-	logger := newTestLogger(t)
-	logger.info("Setting up test forest")
-	root := app.Forest
+func setupTestForest(t *testing.T) *Server {
+	server := NewServer("8080")
+	logger := NewLogger()
+	logger.Enter("Setting up test forest")
+	root := server.forest
 
 	// Create basic structure with admin user
 	root.ID = "root"
 	root.Name = "root"
-	root.Type = forestree.BranchNode
-	root.Children = make(map[string]*forestree.Node)
+	root.Type = core.BranchNode
+	root.Children = make(map[string]*core.Node)
 
-	adminUser := forestree.User{
+	adminUser := core.User{
 		ID:          "admin",
 		Username:    "admin",
-		Permissions: []forestree.Permission{forestree.AdminPermission},
+		Permissions: []core.Permission{core.AdminPermission},
 	}
-	root.Users = []forestree.User{adminUser}
+	root.Users = []core.User{adminUser}
 
 	// Create test node with admin permissions
-	testNode := forestree.NewNode(forestree.LeafNode, "test-node")
+	testNode := core.NewNode(core.LeafNode, "test-node")
 	testNode.ID = "test-node"
-	testNode.Users = []forestree.User{adminUser}
+	testNode.Users = []core.User{adminUser}
 
 	// Add child and set up parent reference
 	root.AddChild(testNode)
 
 	// Save initial state
-	if err := app.WriteChangesToFile(app.Forest, testStateFile); err != nil {
-		logger.failure("Failed to write initial state: %v", err)
+	if err := server.writeChangesToFile(server.forest, testStateFile); err != nil {
+		logger.Failure("Failed to write initial state: %v", err)
 	} else {
-		logger.success("Saved initial state to file")
+		logger.Success("Saved initial state to file")
 	}
 
-	logger.info("Test forest setup complete")
-	return app
+	logger.Info("Test forest setup complete")
+	return server
 }
 
 func TestForestOperations(t *testing.T) {
-	app := setupTestForest(t)
-	logger := newTestLogger(t)
-	logger.enter("ForestOperations")
-	defer logger.exit("ForestOperations")
+	server := setupTestForest(t)
+	logger := NewLogger()
+	logger.Enter("ForestOperations")
+	defer logger.Exit("ForestOperations")
 
-	rootNode := app.Forest
+	rootNode := server.forest
 
-	logger.enter("Node Creation")
-	childNode1 := forestree.NewNode(forestree.BranchNode, "child1")
+	logger.Enter("Node Creation")
+	childNode1 := core.NewNode(core.BranchNode, "child1")
 	childNode1.ID = "child1"
-	childNode2 := forestree.NewNode(forestree.LeafNode, "child2")
+	childNode2 := core.NewNode(core.LeafNode, "child2")
 	childNode2.ID = "child2"
-	childNode3 := forestree.NewNode(forestree.LeafNode, "child3")
+	childNode3 := core.NewNode(core.LeafNode, "child3")
 	childNode3.ID = "child3"
 
 	rootNode.Children[childNode1.ID] = childNode1
 	rootNode.Children[childNode2.ID] = childNode2
 	rootNode.Children[childNode3.ID] = childNode3
 
-	if err := app.WriteChangesToFile(rootNode, testStateFile); err != nil {
-		logger.failure("Failed to write state to file: %v", err)
+	if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+		logger.Failure("Failed to write state to file: %v", err)
 	} else {
-		logger.success("State saved to file")
+		logger.Success("State saved to file")
 	}
-	logger.exit("Node Creation")
-
-	logger.info("Creating Nodes")
-
-	logger.info("Setting Children Nodes")
-	rootNode.Children["child1"] = childNode1
-	rootNode.Children["child2"] = childNode2
-	rootNode.Children["child3"] = childNode3
 
 	// Verify the node structure
 	if len(rootNode.Children) != 4 {
-		logger.failure("Expected 4 children, got %d", len(rootNode.Children))
+		logger.Failure("Expected 4 children, got %d", len(rootNode.Children))
 		t.Errorf("Expected 4 children, got %d", len(rootNode.Children))
 	} else {
-		logger.success("Found 4 children")
+		logger.Success("Found 4 children")
 		// Log the children
 		for _, child := range rootNode.Children {
-			logger.info("Child: %s", child.Name)
+			logger.Info("Child: %s", child.Name)
 		}
 	}
+	logger.Exit("Node Creation")
 
-	logger.info("Adding Users")
+	logger.Enter("Adding Users")
 	// Test user assignment and permission checking
-	user1 := forestree.User{ID: "user1", Permissions: []forestree.Permission{forestree.ReadPermission, forestree.WritePermission}}
-	user2 := forestree.User{ID: "user2", Permissions: []forestree.Permission{forestree.ReadPermission}}
-	user3 := forestree.User{ID: "user3", Permissions: []forestree.Permission{forestree.AdminPermission}}
+	user1 := core.User{ID: "user1", Permissions: []core.Permission{core.ReadPermission, core.WritePermission}}
+	user2 := core.User{ID: "user2", Permissions: []core.Permission{core.ReadPermission}}
+	user3 := core.User{ID: "user3", Permissions: []core.Permission{core.AdminPermission}}
 
-	if err := childNode2.AssignUser(user1, forestree.ReadPermission); err != nil {
-		logger.failure("Failed to assign user1 to childNode2: %v", err)
+	if err := childNode2.AssignUser(user1, core.ReadPermission); err != nil {
+		logger.Failure("Failed to assign user1 to childNode2: %v", err)
 		t.Error(err)
 	} else {
-		logger.success("User1 assigned to childNode2")
+		logger.Success("User1 assigned to childNode2")
 	}
-	if err := childNode2.AssignUser(user2, forestree.ReadPermission); err != nil {
-		logger.failure("Failed to assign user2 to childNode2: %v", err)
+	if err := childNode2.AssignUser(user2, core.ReadPermission); err != nil {
+		logger.Failure("Failed to assign user2 to childNode2: %v", err)
 		t.Error(err)
 	} else {
-		logger.success("User2 assigned to childNode2")
+		logger.Success("User2 assigned to childNode2")
 	}
-	if err := childNode3.AssignUser(user3, forestree.AdminPermission); err != nil {
-		logger.failure("Failed to assign user3 to childNode3: %v", err)
+	if err := childNode3.AssignUser(user3, core.AdminPermission); err != nil {
+		logger.Failure("Failed to assign user3 to childNode3: %v", err)
 		t.Error(err)
 	} else {
-		logger.success("User3 assigned to childNode3")
+		logger.Success("User3 assigned to childNode3")
 	}
-	logger.exit("User Management")
+	logger.Exit("Adding Users")
 
 	// Check permissions
-	if !childNode2.CheckPermission("user1", forestree.ReadPermission) {
-		logger.failure("user1 should have read permission on childNode2")
+	if !childNode2.CheckPermission("user1", core.ReadPermission) {
+		logger.Failure("user1 should have read permission on childNode2")
 		t.Errorf("user1 should have read permission on childNode2")
-	} else if !childNode3.CheckPermission("user3", forestree.AdminPermission) {
-		logger.failure("user3 should have admin permission on childNode3")
+	} else if !childNode3.CheckPermission("user3", core.AdminPermission) {
+		logger.Failure("user3 should have admin permission on childNode3")
 		t.Errorf("user3 should have admin permission on childNode3")
-	} else if childNode2.CheckPermission("user2", forestree.WritePermission) {
-		logger.failure("user2 should not have write permission on childNode2")
+	} else if childNode2.CheckPermission("user2", core.WritePermission) {
+		logger.Failure("user2 should not have write permission on childNode2")
 		t.Errorf("user2 should not have write permission on childNode2")
 	} else {
-		logger.success("Permission checks passed successfully")
+		logger.Success("Permission checks passed successfully")
 	}
 
-	logger.enter("Event Management")
-	logger.info("Starting Event 1")
+	logger.Enter("Event Management")
+	logger.Info("Starting Event 1")
 	// Test event management
 	now := time.Now()
 	event1ID := "event1"
 	if err := childNode2.StartEvent(event1ID, &now, nil, map[string]interface{}{"title": "Test Event 1"}); err != nil {
-		logger.failure("Failed to start event: %v", err)
+		logger.Failure("Failed to start event: %v", err)
 		t.Error(err)
 	} else {
-		logger.success("Event started successfully")
+		logger.Success("Event started successfully")
 	}
 
-	logger.info("Appending Entry to Event 1")
+	logger.Info("Appending Entry to Event 1")
 	if err := childNode2.AppendToEvent(event1ID, "Event entry 1", map[string]interface{}{"note": "First entry"}, "user1"); err != nil {
-		logger.failure("Failed to append to event: %v", err)
+		logger.Failure("Failed to append to event: %v", err)
 		t.Errorf("Failed to append to event: %v", err)
 	} else {
-		logger.success("Appended entry to event")
+		logger.Success("Appended entry to event")
 	}
 
-	logger.info("Ending Event 1")
+	logger.Info("Ending Event 1")
 	if err := childNode2.EndEvent(event1ID); err != nil {
-		logger.failure("Failed to end event: %v", err)
+		logger.Failure("Failed to end event: %v", err)
 		t.Errorf("Failed to end event: %v", err)
 	} else {
-		logger.success("Event ended successfully")
+		logger.Success("Event ended successfully")
 	}
 
 	// Verify event storage and persistence
 	originalEvent, exists := childNode2.Events[event1ID]
 	if !exists {
-		logger.failure("Event %s not found in storage", event1ID)
+		logger.Failure("Event %s not found in storage", event1ID)
 		t.Errorf("Event %s not found in storage", event1ID)
 	} else {
-		logger.success("Event found in storage")
+		logger.Success("Event found in storage")
 	}
 
-	if err := app.WriteChangesToFile(rootNode, testStateFile); err != nil {
-		logger.failure("Failed to write state to file: %v", err)
+	if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+		logger.Failure("Failed to write state to file: %v", err)
 	} else {
-		logger.success("State saved to file")
+		logger.Success("State saved to file")
 	}
 
 	// Get the stored event after reload
 	storedEvent, exists := childNode2.Events[event1ID]
 	if !exists {
-		logger.failure("Event %s not found in storage after reload", event1ID)
+		logger.Failure("Event %s not found in storage after reload", event1ID)
 		t.Errorf("Event %s not found in storage after reload", event1ID)
 	} else {
-		logger.success("Event found in storage after reload")
+		logger.Success("Event found in storage after reload")
 	}
 
 	// Verify event properties against the original stored version
 	if !storedEvent.StartTime.Equal(*originalEvent.StartTime) {
-		logger.failure("Start time mismatch after storage: expected %v, got %v",
+		logger.Failure("Start time mismatch after storage: expected %v, got %v",
 			originalEvent.StartTime, storedEvent.StartTime)
 		t.Errorf("Start time mismatch after storage: expected %v, got %v",
 			originalEvent.StartTime, storedEvent.StartTime)
 	} else {
-		logger.success("Event start time is correct")
+		logger.Success("Event start time is correct")
 	}
 
-	logger.info("Getting Event Summary")
+	logger.Info("Getting Event Summary")
 	// Get the event summary
 	eventSummary, err := childNode2.GetEventSummary(event1ID)
 	if err != nil {
-		logger.failure("Failed to get event summary: %v", err)
+		logger.Failure("Failed to get event summary: %v", err)
 		t.Errorf("Failed to get event summary: %v", err)
-	} else if eventSummary.Status != forestree.EventFinished {
-		logger.failure("Expected event status to be 'finished', got '%s'", eventSummary.Status)
+	} else if eventSummary.Status != core.EventFinished {
+		logger.Failure("Expected event status to be 'finished', got '%s'", eventSummary.Status)
 		t.Errorf("Expected event status to be 'finished', got '%s'", eventSummary.Status)
 	} else if eventSummary.EntriesCount != 1 {
-		logger.failure("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
+		logger.Failure("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
 		t.Errorf("Expected 1 entry in the event, got %d", eventSummary.EntriesCount)
 	} else {
-		logger.success("Event summary is correct")
+		logger.Success("Event summary is correct")
 	}
 
 	// Test planned events
@@ -241,59 +234,59 @@ func TestForestOperations(t *testing.T) {
 	plannedStart := now.Add(time.Hour)
 	plannedEnd := now.Add(2 * time.Hour)
 	if err := childNode2.PlanEvent(event2ID, &plannedStart, &plannedEnd, map[string]interface{}{"title": "Test Event 2"}); err != nil {
-		logger.failure("Failed to plan event: %v", err)
+		logger.Failure("Failed to plan event: %v", err)
 		t.Errorf("Failed to plan event: %v", err)
 	} else {
-		logger.success("Planned event successfully")
+		logger.Success("Planned event successfully")
 	}
 
 	// Compare planned vs actual events
 	match, err := childNode2.CompareEvents(event2ID, event1ID)
 	if match {
-		logger.failure("Expected events to not match, but they did")
+		logger.Failure("Expected events to not match, but they did")
 		t.Errorf("Expected events to not match, but they did")
 	} else {
-		logger.success("Found expected differences: %s", err)
+		logger.Success("Found expected differences: %s", err)
 	}
 
 	// Test time tracking
 	start_entry := childNode2.StartTimeTracking("user1")
 	if start_entry == nil {
-		logger.failure("Failed to start time tracking")
+		logger.Failure("Failed to start time tracking")
 		t.Error("Failed to start time tracking")
 	} else {
-		logger.success("Time tracking started")
+		logger.Success("Time tracking started")
 	}
 
 	end_entry := childNode2.StopTimeTracking("user1")
 	if end_entry == nil {
-		logger.failure("Failed to stop time tracking")
+		logger.Failure("Failed to stop time tracking")
 		t.Error("Failed to stop time tracking")
 	} else {
-		logger.success("Time tracking stopped")
+		logger.Success("Time tracking stopped")
 	}
 
 	summary := childNode2.GetTimeTrackingSummary("user1")
 	if len(summary) != 1 {
-		logger.failure("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
+		logger.Failure("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
 		t.Errorf("Expected 1 time tracking entry, got %d: %s", len(summary), summary)
 	} else {
-		logger.success("Time tracking summary is correct")
+		logger.Success("Time tracking summary is correct")
 	}
-	logger.exit("Time Tracking")
+	logger.Exit("Time Tracking")
 
-	logger.enter("Persistence Verification")
-	if err := app.WriteChangesToFile(rootNode, testStateFile); err != nil {
-		logger.failure("Failed to save final state: %v", err)
+	logger.Enter("Persistence Verification")
+	if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+		logger.Failure("Failed to save final state: %v", err)
 		t.Error(err)
 	} else {
-		logger.success("State saved successfully")
+		logger.Success("State saved successfully")
 	}
 
 	// Create new app and load state
-	newApp := NewApp()
-	var loadedForest forestree.Node
-	if err := newApp.ReadChangesFromFile(testStateFile, &loadedForest); err != nil {
+	newApp := NewServer("8080")
+	var loadedForest core.Node
+	if err := newApp.readChangesFromFile(testStateFile, &loadedForest); err != nil {
 		t.Fatalf("Failed to load state from file: %v", err)
 	}
 	newApp.forest = &loadedForest
@@ -302,102 +295,102 @@ func TestForestOperations(t *testing.T) {
 	if _, err := newApp.forest.GetNode(childNode2.ID); err != nil {
 		t.Errorf("Failed to find childNode2 in the loaded forest: %v", err)
 	} else {
-		logger.success("Found childNode2 in the loaded forest")
+		logger.Success("Found childNode2 in the loaded forest")
 	}
-	logger.exit("Persistence Verification")
+	logger.Exit("Persistence Verification")
 }
 
 func TestJsonSerialization(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("JsonSerialization")
-	defer logger.exit("JsonSerialization")
+	logger := NewLogger()
+	logger.Enter("JsonSerialization")
+	defer logger.Exit("JsonSerialization")
 
-	logger.enter("Node Setup")
-	node := forestree.NewNode(forestree.BranchNode, "test-node")
-	node.Users = []forestree.User{
-		{ID: "user1", Username: "User 1", Email: "user1@example.com", Permissions: []forestree.Permission{forestree.ReadPermission, forestree.WritePermission}},
-		{ID: "user2", Username: "User 2", Email: "user2@example.com", Permissions: []forestree.Permission{forestree.ReadPermission}},
+	logger.Enter("Node Setup")
+	node := core.NewNode(core.BranchNode, "test-node")
+	node.Users = []core.User{
+		{ID: "user1", Username: "User 1", Email: "user1@example.com", Permissions: []core.Permission{core.ReadPermission, core.WritePermission}},
+		{ID: "user2", Username: "User 2", Email: "user2@example.com", Permissions: []core.Permission{core.ReadPermission}},
 	}
 
 	// Add some events
 	now := time.Now()
 	one_hour := now.Add(time.Hour)
-	node.Events = map[string]forestree.Event{
+	node.Events = map[string]core.Event{
 		"event1": {
 			StartTime: &now,
 			EndTime:   &one_hour,
-			Entries: []forestree.Entry{
+			Entries: []core.Entry{
 				{Content: "Entry 1", Timestamp: now, UserID: "user1"},
 				{Content: "Entry 2", Timestamp: now.Add(10 * time.Minute), UserID: "user2"},
 			},
 			Metadata: map[string]interface{}{"title": "Test Event 1"},
-			Status:   forestree.EventFinished,
+			Status:   core.EventFinished,
 		},
 	}
-	logger.exit("Node Setup")
+	logger.Exit("Node Setup")
 
-	logger.enter("Serialization")
+	logger.Enter("Serialization")
 	jsonData, err := json.Marshal(node)
 	if err != nil {
-		logger.failure("Failed to marshal node: %v", err)
+		logger.Failure("Failed to marshal node: %v", err)
 		t.Error(err)
 	} else {
-		logger.success("Node marshalled successfully")
+		logger.Success("Node marshalled successfully")
 	}
 
 	// Deserialize the node from JSON
-	var loadedNode forestree.Node
+	var loadedNode core.Node
 	if err := json.Unmarshal(jsonData, &loadedNode); err != nil {
-		logger.failure("Failed to unmarshal node from JSON: %v", err)
+		logger.Failure("Failed to unmarshal node from JSON: %v", err)
 		t.Error(err)
 	}
 
 	// Verify the deserialized node
 	if loadedNode.Name != "test-node" {
-		logger.failure("Expected node name to be 'test-node', got '%s'", loadedNode.Name)
+		logger.Failure("Expected node name to be 'test-node', got '%s'", loadedNode.Name)
 		t.Errorf("Expected node name to be 'test-node', got '%s'", loadedNode.Name)
 	} else {
-		logger.success("Node name is correct")
+		logger.Success("Node name is correct")
 	}
 	if len(loadedNode.Users) != 2 {
-		logger.failure("Expected 2 users, got %d", len(loadedNode.Users))
+		logger.Failure("Expected 2 users, got %d", len(loadedNode.Users))
 		t.Errorf("Expected 2 users, got %d", len(loadedNode.Users))
 	} else {
-		logger.success("Found 2 users")
+		logger.Success("Found 2 users")
 	}
 	if len(loadedNode.Events) != 1 {
-		logger.failure("Expected 1 event, got %d", len(loadedNode.Events))
+		logger.Failure("Expected 1 event, got %d", len(loadedNode.Events))
 		t.Errorf("Expected 1 event, got %d", len(loadedNode.Events))
 	} else {
-		logger.success("Found 1 event")
+		logger.Success("Found 1 event")
 	}
 	event, ok := loadedNode.Events["event1"]
 	if !ok {
-		logger.failure("Expected event with ID 'event1' to be present")
+		logger.Failure("Expected event with ID 'event1' to be present")
 		t.Errorf("Expected event with ID 'event1' to be present")
 	} else {
-		logger.success("Event found")
+		logger.Success("Event found")
 	}
 	if event.Entries[0].Content != "Entry 1" {
-		logger.failure("Expected first event entry to have content 'Entry 1', got '%s'", event.Entries[0].Content)
+		logger.Failure("Expected first event entry to have content 'Entry 1', got '%s'", event.Entries[0].Content)
 		t.Errorf("Expected first event entry to have content 'Entry 1', got '%s'", event.Entries[0].Content)
 	} else {
-		logger.success("Event entry content is correct")
+		logger.Success("Event entry content is correct")
 	}
-	logger.exit("Serialization")
+	logger.Exit("Serialization")
 }
 
 func TestHandleAssignUser(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleAssignUser")
-	defer logger.exit("HandleAssignUser")
+	logger := NewLogger()
+	logger.Enter("HandleAssignUser")
+	defer logger.Exit("HandleAssignUser")
 
 	app := setupTestForest(t)
 
 	body := map[string]interface{}{
 		"path":        "test-node",
 		"assignee_id": "test_user",
-		"permission":  forestree.WritePermission,
+		"permission":  core.WritePermission,
 	}
 	bodyBytes, _ := json.Marshal(body)
 
@@ -410,27 +403,27 @@ func TestHandleAssignUser(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v\nBody: %v",
+		logger.Failure("Handler returned wrong status code: got %v want %v\nBody: %v",
 			status, http.StatusOK, rr.Body.String())
 		t.Errorf("Handler returned wrong status code: got %v want %v\nBody: %v",
 			status, http.StatusOK, rr.Body.String())
 	} else {
-		logger.success("User assigned successfully")
+		logger.Success("User assigned successfully")
 	}
 
 	// Save state
-	if err := app.WriteChangesToFile(app.Forest, testStateFile); err != nil {
-		logger.failure("Failed to save state: %v", err)
+	if err := app.writeChangesToFile(app.forest, testStateFile); err != nil {
+		logger.Failure("Failed to save state: %v", err)
 		t.Fatalf("Failed to save state: %v", err)
 	} else {
-		logger.success("State saved successfully")
+		logger.Success("State saved successfully")
 	}
 }
 
 func TestHandleGetTimeTracking(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleGetTimeTracking")
-	defer logger.exit("HandleGetTimeTracking")
+	logger := NewLogger()
+	logger.Enter("HandleGetTimeTracking")
+	defer logger.Exit("HandleGetTimeTracking")
 
 	app := setupTestForest(t)
 
@@ -460,18 +453,18 @@ func TestHandleGetTimeTracking(t *testing.T) {
 	json.NewDecoder(rr.Body).Decode(&summary)
 
 	if len(summary) == 0 {
-		logger.failure("Expected non-empty summary")
+		logger.Failure("Expected non-empty summary")
 		t.Error("Expected non-empty summary")
 	} else {
-		logger.success("Time tracking summary is correct")
-		logger.info("Summary: %v", summary)
+		logger.Success("Time tracking summary is correct")
+		logger.Info("Summary: %v", summary)
 	}
 }
 
 func TestHandleGetEventEntries(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleGetEventEntries")
-	defer logger.exit("HandleGetEventEntries")
+	logger := NewLogger()
+	logger.Enter("HandleGetEventEntries")
+	defer logger.Exit("HandleGetEventEntries")
 
 	app := setupTestForest(t)
 
@@ -492,7 +485,7 @@ func TestHandleGetEventEntries(t *testing.T) {
 	app.handleStartEvent(startRR, startReq)
 
 	if startRR.Code != http.StatusOK {
-		logger.failure("Failed to start event: %v", startRR.Body.String())
+		logger.Failure("Failed to start event: %v", startRR.Body.String())
 		t.Fatalf("Failed to start event: %v", startRR.Body.String())
 	}
 
@@ -511,24 +504,24 @@ func TestHandleGetEventEntries(t *testing.T) {
 	app.handleGetEventEntries(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	}
 
 	var entries []interface{}
 	if err := json.NewDecoder(rr.Body).Decode(&entries); err != nil {
-		logger.failure("Failed to decode response: %v", err)
+		logger.Failure("Failed to decode response: %v", err)
 		t.Errorf("Failed to decode response: %v", err)
 	} else {
-		logger.success("Successfully retrieved event entries")
-		logger.info("Entries: %v", entries)
+		logger.Success("Successfully retrieved event entries")
+		logger.Info("Entries: %v", entries)
 	}
 }
 
 func TestHandleEndEvent(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleEndEvent")
-	defer logger.exit("HandleEndEvent")
+	logger := NewLogger()
+	logger.Enter("HandleEndEvent")
+	defer logger.Exit("HandleEndEvent")
 
 	app := setupTestForest(t)
 
@@ -557,18 +550,18 @@ func TestHandleEndEvent(t *testing.T) {
 	app.handleEndEvent(rr, endReq)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	} else {
-		logger.success("Event ended successfully")
-		logger.info("Response: %s", rr.Body.String())
+		logger.Success("Event ended successfully")
+		logger.Info("Response: %s", rr.Body.String())
 	}
 }
 
 func TestHandleAppendToEvent(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleAppendToEvent")
-	defer logger.exit("HandleAppendToEvent")
+	logger := NewLogger()
+	logger.Enter("HandleAppendToEvent")
+	defer logger.Exit("HandleAppendToEvent")
 
 	app := setupTestForest(t)
 
@@ -589,7 +582,7 @@ func TestHandleAppendToEvent(t *testing.T) {
 	app.handleStartEvent(startRR, startReq)
 
 	if startRR.Code != http.StatusOK {
-		logger.failure("Failed to start event: %v", startRR.Body.String())
+		logger.Failure("Failed to start event: %v", startRR.Body.String())
 		t.Fatalf("Failed to start event: %v", startRR.Body.String())
 	}
 
@@ -612,12 +605,12 @@ func TestHandleAppendToEvent(t *testing.T) {
 	app.handleAppendToEvent(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v, body: %v",
+		logger.Failure("Handler returned wrong status code: got %v want %v, body: %v",
 			status, http.StatusOK, rr.Body.String())
 		t.Errorf("Handler returned wrong status code: got %v want %v, body: %v",
 			status, http.StatusOK, rr.Body.String())
 	} else {
-		logger.success("Successfully appended to event")
+		logger.Success("Successfully appended to event")
 	}
 
 	// Verify the entry was added
@@ -635,23 +628,23 @@ func TestHandleAppendToEvent(t *testing.T) {
 
 	var entries []interface{}
 	if err := json.NewDecoder(getRR.Body).Decode(&entries); err != nil {
-		logger.failure("Failed to decode entries: %v", err)
+		logger.Failure("Failed to decode entries: %v", err)
 		t.Errorf("Failed to decode entries: %v", err)
 	}
 
 	if len(entries) != 1 {
-		logger.failure("Expected 1 entry, got %d", len(entries))
+		logger.Failure("Expected 1 entry, got %d", len(entries))
 		t.Errorf("Expected 1 entry, got %d", len(entries))
 	} else {
-		logger.success("Verified correct number of entries")
-		logger.info("Entries: %v", entries)
+		logger.Success("Verified correct number of entries")
+		logger.Info("Entries: %v", entries)
 	}
 }
 
 func TestHandleStartEvent(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleStartEvent")
-	defer logger.exit("HandleStartEvent")
+	logger := NewLogger()
+	logger.Enter("HandleStartEvent")
+	defer logger.Exit("HandleStartEvent")
 
 	app := setupTestForest(t)
 
@@ -672,48 +665,47 @@ func TestHandleStartEvent(t *testing.T) {
 	app.handleStartEvent(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	} else {
-		logger.success("Event started successfully")
-		logger.info("Response: %s", rr.Body.String())
+		logger.Success("Event started successfully")
+		logger.Info("Response: %s", rr.Body.String())
 	}
 }
 
 func TestHandleAppendToEventWithCategories(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandleAppendToEventWithCategories")
-	defer logger.exit("HandleAppendToEventWithCategories")
+	logger := NewLogger()
+	logger.Enter("HandleAppendToEventWithCategories")
+	defer logger.Exit("HandleAppendToEventWithCategories")
 
 	app := setupTestForest(t)
 	nodePath := "health/exercise/workout"
-	logger.info("Looking for node at path: %s", nodePath)
+	logger.Info("Looking for node at path: %s", nodePath)
 
 	// Create branch structure: health::exercise::workout
-	healthNode := forestree.NewNode(forestree.BranchNode, "health")
+	healthNode := core.NewNode(core.BranchNode, "health")
 	healthNode.ID = "health"
-	exerciseNode := forestree.NewNode(forestree.BranchNode, "exercise")
+	exerciseNode := core.NewNode(core.BranchNode, "exercise")
 	exerciseNode.ID = "exercise"
-	workoutNode := forestree.NewNode(forestree.LeafNode, "workout")
+	workoutNode := core.NewNode(core.LeafNode, "workout")
 	workoutNode.ID = "workout"
 
 	// Add admin user to all nodes
-	adminUser := forestree.User{
+	adminUser := core.User{
 		ID:          "admin",
 		Username:    "admin",
-		Permissions: []forestree.Permission{forestree.AdminPermission},
+		Permissions: []core.Permission{core.AdminPermission},
 	}
-	healthNode.Users = []forestree.User{adminUser}
-	exerciseNode.Users = []forestree.User{adminUser}
-	workoutNode.Users = []forestree.User{adminUser}
+	healthNode.Users = []core.User{adminUser}
+	exerciseNode.Users = []core.User{adminUser}
+	workoutNode.Users = []core.User{adminUser}
 
 	// Set up node hierarchy
-	app.Forest.AddChild(healthNode)
+	app.forest.AddChild(healthNode)
 	healthNode.AddChild(exerciseNode)
 	exerciseNode.AddChild(workoutNode)
 
-	nodePath := "health/exercise/workout"
-	logger.info("Testing with node path: %s", nodePath)
+	logger.Info("Testing with node path: %s", nodePath)
 
 	// Start event
 	startBody := map[string]interface{}{
@@ -751,29 +743,29 @@ func TestHandleAppendToEventWithCategories(t *testing.T) {
 	app.handleAppendToEvent(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	} else {
-		logger.success("Event appended successfully")
-		logger.info("Response: %s", rr.Body.String())
+		logger.Success("Event appended successfully")
+		logger.Info("Response: %s", rr.Body.String())
 	}
 }
 
 func TestHandlePlanEvent(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("HandlePlanEvent")
-	defer logger.exit("HandlePlanEvent")
+	logger := NewLogger()
+	logger.Enter("HandlePlanEvent")
+	defer logger.Exit("HandlePlanEvent")
 
 	app := setupTestForest(t)
 
-	logger.info("Setting up test environment")
+	logger.Info("Setting up test environment")
 
 	// Create branch structure: study::languages::spanish
-	studyNode := forestree.NewNode(forestree.BranchNode, "study")
-	languagesNode := forestree.NewNode(forestree.BranchNode, "languages")
-	spanishNode := forestree.NewNode(forestree.LeafNode, "spanish")
+	studyNode := core.NewNode(core.BranchNode, "study")
+	languagesNode := core.NewNode(core.BranchNode, "languages")
+	spanishNode := core.NewNode(core.LeafNode, "spanish")
 
-	app.Forest.Children["study"] = studyNode
+	app.forest.Children["study"] = studyNode
 	studyNode.Children["languages"] = languagesNode
 	languagesNode.Children["spanish"] = spanishNode
 
@@ -804,31 +796,31 @@ func TestHandlePlanEvent(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	if status := rr.Code; status != http.StatusOK {
-		logger.failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("Handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	} else {
-		logger.success("Event planned successfully")
-		logger.info("Response: %s", rr.Body.String())
+		logger.Success("Event planned successfully")
+		logger.Info("Response: %s", rr.Body.String())
 	}
 }
 
 func TestMultipleParentNodes(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("MultipleParentNodes")
-	defer logger.exit("MultipleParentNodes")
+	logger := NewLogger()
+	logger.Enter("MultipleParentNodes")
+	defer logger.Exit("MultipleParentNodes")
 
 	app := setupTestForest(t)
-	root := app.Forest
+	root := app.forest
 
 	// Create branch structure for multiple paths to savings
-	lifeNode := forestree.NewNode(forestree.BranchNode, "life")
-	workNode := forestree.NewNode(forestree.BranchNode, "work")
-	paydayNode := forestree.NewNode(forestree.BranchNode, "payday")
-	financeNode := forestree.NewNode(forestree.BranchNode, "finance")
-	wealthNode := forestree.NewNode(forestree.BranchNode, "wealth")
-	houseNode := forestree.NewNode(forestree.BranchNode, "house")
-	fundNode := forestree.NewNode(forestree.BranchNode, "fund")
-	savingsNode := forestree.NewNode(forestree.LeafNode, "savings")
+	lifeNode := core.NewNode(core.BranchNode, "life")
+	workNode := core.NewNode(core.BranchNode, "work")
+	paydayNode := core.NewNode(core.BranchNode, "payday")
+	financeNode := core.NewNode(core.BranchNode, "finance")
+	wealthNode := core.NewNode(core.BranchNode, "wealth")
+	houseNode := core.NewNode(core.BranchNode, "house")
+	fundNode := core.NewNode(core.BranchNode, "fund")
+	savingsNode := core.NewNode(core.LeafNode, "savings")
 
 	// Setup path: life::work::payday::savings
 	root.Children["life"] = lifeNode
@@ -848,10 +840,10 @@ func TestMultipleParentNodes(t *testing.T) {
 
 	// Verify the node structure
 	if len(root.Children["life"].Children) != 3 {
-		logger.failure("Expected life node to have 3 children, got %d", len(root.Children["life"].Children))
+		logger.Failure("Expected life node to have 3 children, got %d", len(root.Children["life"].Children))
 		t.Errorf("Expected life node to have 3 children, got %d", len(root.Children["life"].Children))
 	} else {
-		logger.success("Life node has expected number of children")
+		logger.Success("Life node has expected number of children")
 	}
 
 	// Verify savings node is accessible from all paths
@@ -861,22 +853,22 @@ func TestMultipleParentNodes(t *testing.T) {
 		{"life", "wealth", "house", "fund", "savings"},
 	}
 
-	logger.enter("Path Verification")
+	logger.Enter("Path Verification")
 	for _, path := range paths {
 		currentNode := root
 		for _, nodeName := range path {
 			if next, exists := currentNode.Children[nodeName]; exists {
 				currentNode = next
-				logger.success("Path %v is valid at node %s", path, nodeName)
+				logger.Success("Path %v is valid at node %s", path, nodeName)
 			} else {
-				logger.failure("Path %v is broken at node %s", path, nodeName)
+				logger.Failure("Path %v is broken at node %s", path, nodeName)
 				t.Errorf("Path %v is broken at node %s", path, nodeName)
 			}
 		}
 	}
-	logger.exit("Path Verification")
+	logger.Exit("Path Verification")
 
-	logger.enter("Event Propagation")
+	logger.Enter("Event Propagation")
 	// Test event propagation through all parents
 	savingsNode.StartEvent("deposit", nil, nil, map[string]interface{}{"amount": 1000})
 
@@ -887,23 +879,23 @@ func TestMultipleParentNodes(t *testing.T) {
 			currentNode = currentNode.Children[nodeName]
 		}
 		if _, err := currentNode.GetEventSummary("deposit"); err != nil {
-			logger.failure("Event not accessible through path %v: %v", path, err)
+			logger.Failure("Event not accessible through path %v: %v", path, err)
 			t.Errorf("Event not accessible through path %v: %v", path, err)
 		} else {
-			logger.success("Event accessible through path %v", path)
+			logger.Success("Event accessible through path %v", path)
 		}
 	}
-	logger.exit("Event Propagation")
+	logger.Exit("Event Propagation")
 }
 
 func TestUserCreationAndAuthentication(t *testing.T) {
-	logger := newTestLogger(t)
-	logger.enter("UserCreationAndAuthentication")
-	defer logger.exit("UserCreationAndAuthentication")
+	logger := NewLogger()
+	logger.Enter("UserCreationAndAuthentication")
+	defer logger.Exit("UserCreationAndAuthentication")
 
 	app := setupTestForest(t)
 
-	logger.enter("User Creation")
+	logger.Enter("User Creation")
 	// Test user creation
 	createBody := map[string]interface{}{
 		"username": "testuser",
@@ -918,14 +910,14 @@ func TestUserCreationAndAuthentication(t *testing.T) {
 	app.handleCreateUser(createRR, createReq)
 
 	if status := createRR.Code; status != http.StatusOK {
-		logger.failure("User creation failed with status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("User creation failed with status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	} else {
-		logger.success("User created successfully")
+		logger.Success("User created successfully")
 	}
-	logger.exit("User Creation")
+	logger.Exit("User Creation")
 
-	logger.enter("Login Tests")
+	logger.Enter("Login Tests")
 	// Test successful login
 	loginBody := map[string]interface{}{
 		"username": "testuser",
@@ -939,28 +931,28 @@ func TestUserCreationAndAuthentication(t *testing.T) {
 	app.handleLogin(loginRR, loginReq)
 
 	if status := loginRR.Code; status != http.StatusOK {
-		logger.failure("Login failed with status code: got %v want %v", status, http.StatusOK)
+		logger.Failure("Login failed with status code: got %v want %v", status, http.StatusOK)
 		t.Errorf("login handler returned wrong status code: got %v want %v", status, http.StatusOK)
 	} else {
-		logger.success("Login successful")
+		logger.Success("Login successful")
 	}
 
 	var loginResponse map[string]string
 	if err := json.NewDecoder(loginRR.Body).Decode(&loginResponse); err != nil {
-		logger.failure("Failed to decode login response: %v", err)
+		logger.Failure("Failed to decode login response: %v", err)
 		t.Errorf("Failed to decode login response: %v", err)
 	} else {
-		logger.success("Login response decoded successfully")
+		logger.Success("Login response decoded successfully")
 	}
 
 	if _, exists := loginResponse["token"]; !exists {
-		logger.failure("Login response missing token")
+		logger.Failure("Login response missing token")
 		t.Error("Login response missing token")
 	} else {
-		logger.success("JWT token received")
+		logger.Success("JWT token received")
 	}
 
-	logger.enter("Failed Login Test")
+	logger.Enter("Failed Login Test")
 	// Test failed login with wrong password
 	wrongLoginBody := map[string]interface{}{
 		"username": "testuser",
@@ -974,13 +966,13 @@ func TestUserCreationAndAuthentication(t *testing.T) {
 	app.handleLogin(wrongLoginRR, wrongLoginReq)
 
 	if status := wrongLoginRR.Code; status != http.StatusUnauthorized {
-		logger.failure("Wrong password login returned unexpected status: got %v want %v",
+		logger.Failure("Wrong password login returned unexpected status: got %v want %v",
 			status, http.StatusUnauthorized)
 		t.Errorf("login handler with wrong password returned wrong status code: got %v want %v",
 			status, http.StatusUnauthorized)
 	} else {
-		logger.success("Wrong password correctly rejected")
+		logger.Success("Wrong password correctly rejected")
 	}
-	logger.exit("Failed Login Test")
-	logger.exit("Login Tests")
+	logger.Exit("Failed Login Test")
+	logger.Exit("Login Tests")
 }

@@ -13,24 +13,24 @@ import (
 )
 
 // loadFromFile loads the forest data from the file.
-func (app *App) loadFromFile(filename string) error {
+func (server *Server) loadFromFile(filename string) error {
 	// Here, load and verify the data, decompress, and unmarshal the forest data from the file
 	var loadedForest core.Node
 
-	err := app.ReadChangesFromFile(filename, &loadedForest)
+	err := server.readChangesFromFile(filename, &loadedForest)
 	if err != nil {
 		return fmt.Errorf("error loading forest from file: %v", err)
 	}
 
 	// Assign the loaded forest data to the app's forest
-	app.Forest = &loadedForest
+	server.forest = &loadedForest
 	return nil
 }
 
 // LoadStateFromFile loads the forest state from a file
-func (app *App) LoadStateFromFile(filename string) error {
-	app.Mutex.Lock()
-	defer app.Mutex.Unlock()
+func (server *Server) loadStateFromFile(filename string) error {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -42,7 +42,7 @@ func (app *App) LoadStateFromFile(filename string) error {
 	decoder := json.NewDecoder(file)
 
 	// Decode into the app's forest
-	if err := decoder.Decode(&app.Forest); err != nil {
+	if err := decoder.Decode(&server.forest); err != nil {
 		return fmt.Errorf("failed to decode state file: %v", err)
 	}
 
@@ -52,9 +52,9 @@ func (app *App) LoadStateFromFile(filename string) error {
 
 // TODO: Encrypt this
 // Function to write changes to an encrypted state file
-func (app *App) WriteChangesToFile(data interface{}, filename string) error {
-	app.Mutex.Lock()
-	defer app.Mutex.Unlock()
+func (server *Server) writeChangesToFile(data interface{}, filename string) error {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
 
 	// Marshal the data to JSON
 	jsonData, err := json.Marshal(data)
@@ -90,7 +90,7 @@ func (app *App) WriteChangesToFile(data interface{}, filename string) error {
 }
 
 // ReadChangesFromFile reads the hash and compressed data from the file, decompresses and validates it.
-func (app *App) ReadChangesFromFile(filename string, data interface{}) error {
+func (server *Server) readChangesFromFile(filename string, data interface{}) error {
 	// Open the file
 	file, err := os.Open(filename)
 	if err != nil {

@@ -13,13 +13,13 @@ import (
 )
 
 // HTTP handler for assigning a user
-func (app *App) HandleAssignUser(w http.ResponseWriter, r *http.Request) {
-	app.Logger.Enter("AssignUser")
-	defer app.Logger.Exit("AssignUser")
+func (server *Server) handleAssignUser(w http.ResponseWriter, r *http.Request) {
+	server.logger.Enter("AssignUser")
+	defer server.logger.Exit("AssignUser")
 
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
-		app.Logger.Failure("User ID required")
+		server.logger.Failure("User ID required")
 		http.Error(w, "User ID required", http.StatusUnauthorized)
 		return
 	}
@@ -35,7 +35,7 @@ func (app *App) HandleAssignUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.Forest.GetNode(request.Path)
+	node, err := server.forest.GetNode(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -60,7 +60,7 @@ func (app *App) HandleAssignUser(w http.ResponseWriter, r *http.Request) {
 	}, userID)
 
 	// Write changes to file
-	if err := app.WriteChangesToFile(node, "state_file.dat"); err != nil {
+	if err := server.writeChangesToFile(node, "state_file.dat"); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -69,7 +69,7 @@ func (app *App) HandleAssignUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTTP handler for starting time tracking
-func (app *App) HandleStartTimeTracking(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleStartTimeTracking(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusUnauthorized)
@@ -85,7 +85,7 @@ func (app *App) HandleStartTimeTracking(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	node, err := app.Forest.GetNode(request.Path)
+	node, err := server.forest.GetNode(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -94,7 +94,7 @@ func (app *App) HandleStartTimeTracking(w http.ResponseWriter, r *http.Request) 
 	node.StartTimeTracking(userID)
 
 	// Write changes to file
-	if err := app.WriteChangesToFile(node, "state_file.dat"); err != nil {
+	if err := server.writeChangesToFile(node, "state_file.dat"); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -103,7 +103,7 @@ func (app *App) HandleStartTimeTracking(w http.ResponseWriter, r *http.Request) 
 }
 
 // HTTP handler for stopping time tracking
-func (app *App) HandleStopTimeTracking(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleStopTimeTracking(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusUnauthorized)
@@ -119,7 +119,7 @@ func (app *App) HandleStopTimeTracking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.Forest.GetNode(request.Path)
+	node, err := server.forest.GetNode(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -131,14 +131,14 @@ func (app *App) HandleStopTimeTracking(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(summary)
 
 	// Write changes to file
-	if err := app.WriteChangesToFile(node, "state_file.dat"); err != nil {
+	if err := server.writeChangesToFile(node, "state_file.dat"); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
 }
 
 // HTTP handler for getting time tracking summary
-func (app *App) HandleGetTimeTracking(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGetTimeTracking(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusUnauthorized)
@@ -154,7 +154,7 @@ func (app *App) HandleGetTimeTracking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.Forest.GetNode(request.Path)
+	node, err := server.forest.GetNode(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -165,7 +165,7 @@ func (app *App) HandleGetTimeTracking(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTTP handler for starting an event
-func (app *App) HandleStartEvent(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleStartEvent(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusUnauthorized)
@@ -183,7 +183,7 @@ func (app *App) HandleStartEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.getNodeFromPath(request.Path)
+	node, err := server.getNodeFromPath(request.Path)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Path error: %v", err), http.StatusNotFound)
 		return
@@ -195,7 +195,7 @@ func (app *App) HandleStartEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save state after event creation
-	if err := app.WriteChangesToFile(app.Forest, "state_file.dat"); err != nil {
+	if err := server.writeChangesToFile(server.forest, "state_file.dat"); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -204,7 +204,7 @@ func (app *App) HandleStartEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTTP handler for ending an event
-func (app *App) HandleEndEvent(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleEndEvent(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusUnauthorized)
@@ -221,7 +221,7 @@ func (app *App) HandleEndEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.getNodeFromPath(request.Path)
+	node, err := server.getNodeFromPath(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -236,7 +236,7 @@ func (app *App) HandleEndEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTTP handler for appending to an event
-func (app *App) HandleAppendToEvent(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleAppendToEvent(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("X-User-ID")
 	if userID == "" {
 		http.Error(w, "User ID required", http.StatusUnauthorized)
@@ -257,7 +257,7 @@ func (app *App) HandleAppendToEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Looking for node at path: %s", request.Path)
-	node, err := app.getNodeFromPath(request.Path)
+	node, err := server.getNodeFromPath(request.Path)
 	if err != nil {
 		log.Printf("Failed to get node: %v", err)
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -271,7 +271,7 @@ func (app *App) HandleAppendToEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := app.WriteChangesToFile(app.Forest, "state_file.dat"); err != nil {
+	if err := server.writeChangesToFile(server.forest, "state_file.dat"); err != nil {
 		log.Printf("Failed to save state: %v", err)
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
@@ -281,7 +281,7 @@ func (app *App) HandleAppendToEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTTP handler for getting event entries
-func (app *App) HandleGetEventEntries(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGetEventEntries(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Path    string `json:"path"`
 		EventID string `json:"event_id"`
@@ -292,7 +292,7 @@ func (app *App) HandleGetEventEntries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.getNodeFromPath(request.Path)
+	node, err := server.getNodeFromPath(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -309,19 +309,19 @@ func (app *App) HandleGetEventEntries(w http.ResponseWriter, r *http.Request) {
 }
 
 // HTTP handler for getting tree
-func (app *App) HandleGetTree(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(app.Forest)
+	json.NewEncoder(w).Encode(server.forest)
 }
 
 // HTTP handler for getting users
-func (app *App) HandleGetUsers(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(app.Forest.Users)
+	json.NewEncoder(w).Encode(server.forest.Users)
 }
 
 // HTTP handler for creating a user
-func (app *App) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
@@ -346,13 +346,13 @@ func (app *App) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add user to the root node
-	if err := app.Forest.AssignUser(user, core.ReadPermission); err != nil {
+	if err := server.forest.AssignUser(user, core.ReadPermission); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Save state
-	if err := app.WriteChangesToFile(app.Forest, "state_file.dat"); err != nil {
+	if err := server.writeChangesToFile(server.forest, "state_file.dat"); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -360,7 +360,7 @@ func (app *App) HandleCreateUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (app *App) HandlePlanEvent(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handlePlanEvent(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Path      string                 `json:"path"`
 		EventID   string                 `json:"event_id"`
@@ -386,7 +386,7 @@ func (app *App) HandlePlanEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node, err := app.getNodeFromPath(request.Path)
+	node, err := server.getNodeFromPath(request.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -401,7 +401,7 @@ func (app *App) HandlePlanEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 // Add new handlers
-func (app *App) HandleLogin(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -414,7 +414,7 @@ func (app *App) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Find user
 	var user *core.User
-	for _, u := range app.Forest.Users {
+	for _, u := range server.forest.Users {
 		if u.Username == credentials.Username {
 			user = &u
 			break
@@ -430,10 +430,10 @@ func (app *App) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":  user.ID,
 		"username": user.Username,
-		"exp":      time.Now().Add(app.JWTConfig.ExpiresIn).Unix(),
+		"exp":      time.Now().Add(server.jwtConfig.ExpiresIn).Unix(),
 	})
 
-	tokenString, err := token.SignedString(app.JWTConfig.SecretKey)
+	tokenString, err := token.SignedString(server.jwtConfig.SecretKey)
 	if err != nil {
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return

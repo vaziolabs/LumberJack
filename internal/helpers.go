@@ -24,7 +24,7 @@ func compareHashes(a, b []byte) bool {
 }
 
 // Add middleware for authentication
-func (app *App) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func (server *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenString := r.Header.Get("Authorization")
 		if tokenString == "" {
@@ -39,7 +39,7 @@ func (app *App) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return app.JWTConfig.SecretKey, nil
+			return server.jwtConfig.SecretKey, nil
 		})
 
 		if err != nil || !token.Valid {
@@ -60,13 +60,13 @@ func (app *App) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // getNodeFromPath traverses the forest to find a node by its path
-func (app *App) getNodeFromPath(path string) (*core.Node, error) {
+func (server *Server) getNodeFromPath(path string) (*core.Node, error) {
 	if path == "" {
-		return app.Forest, nil
+		return server.forest, nil
 	}
 
 	parts := strings.Split(path, "/")
-	current := app.Forest
+	current := server.forest
 
 	for _, part := range parts {
 		found := false

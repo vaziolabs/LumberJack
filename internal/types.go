@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"net/http"
 	"sync"
 	"time"
 
@@ -13,10 +14,10 @@ type JWTConfig struct {
 	ExpiresIn time.Duration
 }
 
-// App represents the main application structure
-type App struct {
-	Forest    *core.Node
-	Mutex     sync.Mutex
-	JWTConfig JWTConfig
-	Logger    Logger
+type Server struct {
+	forest    *core.Node
+	mutex     sync.Mutex
+	jwtConfig JWTConfig
+	logger    Logger
+	server    *http.Server
 }
