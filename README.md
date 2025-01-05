@@ -3,15 +3,62 @@
 ## Overview
 The LumberJack API provides a hierarchical event tracking system where nodes can have multiple parents and events can be tracked across different organizational paths.
 
+## Installation & Usage
+
+### Using as a Package
+```bash
+go get github.com/vaziolabs/lumberjack
+```
+
+### Building from Source
+```bash
+git clone https://github.com/vaziolabs/lumberjack.git
+cd lumberjack
+go build
+```
+
+### Getting Started
+Starting LumberJack is as simple as running the following command:
+```bash
+./lumberjack
+```
+
+To create a new server configuration:
+```bash
+./lumberjack create
+```
+
+To start the server:
+```bash
+./lumberjack start
+
+# Or with dashboard
+./lumberjack start -d
+```
+
+To list current configuration:
+```bash
+./lumberjack list
+```
+
+To delete configuration:
+```bash
+./lumberjack delete
+```
+
 ## TODOS:
  - [ ] Improved Testing
     - [ ] Remove redundant tests
     - [ ] Finish incomplete tests
  - [ ] Adding Core Logger
- - [ ] Fix Multiple Databases and configs
- - [ ] Test Dashboard
+ - [ ] Allow Multiple Databases and configs
+ - [ ] Test Dashboard Data Display and Interaction
+    - [ ] Add Dashboard Login
+    - [ ] Add API Event Logging
  - [ ] Create Typescript module
  - [ ] have CLI daemonize API and Dashboard
+ - [ ] Add TLS
+ - [ ] Remove Admin from Config
 
 ## Core Concepts
 
