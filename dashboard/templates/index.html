@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ForestTree Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <nav class="sidebar">
+            <h1>ForestTree</h1>
+            <ul>
+                <li><a href="#" data-view="tree">Tree View</a></li>
+                <li><a href="#" data-view="events">Events</a></li>
+                <li><a href="#" data-view="logs">Logs</a></li>
+                <li><a href="#" data-view="users">Users</a></li>
+            </ul>
+        </nav>
+        
+        <main class="content">
+            <div id="tree-view" class="view"></div>
+            <div id="events-view" class="view"></div>
+            <div id="logs-view" class="view"></div>
+            <div id="users-view" class="view">
+                <div class="users-header">
+                    <h2>User Management</h2>
+                    <button id="add-user-btn" class="btn">Add User</button>
+                </div>
+                <div class="users-list"></div>
+            </div>
+        </main>
+
+        <!-- Add User Modal -->
+        <div id="user-modal" class="modal">
+            <div class="modal-content">
+                <h3>Add New User</h3>
+                <form id="user-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Permissions</label>
+                        <div class="permissions-group">
+                            <label><input type="checkbox" value="read"> Read</label>
+                            <label><input type="checkbox" value="write"> Write</label>
+                            <label><input type="checkbox" value="admin"> Admin</label>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn">Save</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>
