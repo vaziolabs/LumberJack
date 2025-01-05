@@ -48,6 +48,7 @@ To delete configuration:
 
 ## TODOS:
  - [ ] Improved Testing
+    - [ ] Fix Testing Logging and Scoping to create Run directives
     - [ ] Remove redundant tests
     - [ ] Finish incomplete tests
  - [ ] Refactor CLI types to work with the Core for directory structure
