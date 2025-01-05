@@ -1,7 +1,7 @@
-# ForestTree API Documentation
+# LumberJack API Documentation
 
 ## Overview
-The ForestTree API provides a hierarchical event tracking system where nodes can have multiple parents and events can be tracked across different organizational paths.
+The LumberJack API provides a hierarchical event tracking system where nodes can have multiple parents and events can be tracked across different organizational paths.
 
 ## Core Concepts
 
