@@ -50,15 +50,30 @@ To delete configuration:
  - [ ] Improved Testing
     - [ ] Remove redundant tests
     - [ ] Finish incomplete tests
- - [ ] Adding Core Logger
- - [ ] Allow Multiple Databases and configs
+ - [ ] Refactor CLI types to work with the Core for directory structure
+    - [ ] Ensure logger is logging to the correct file
+    - [ ] Ensure the dat file is created and updated in the correct directory
+ - [ ] Add Core Logger
+    - [ ] Integrate debug logging into log file
+ - [ ] Improve CLI
+   - [X] Allow Multiple Databases and configs
+   - [ ] Add proper linux directory structure
+   - [ ] Test all Help commands
+   - [ ] Ensure delete commands require admin confirmation
+   - [ ] Update `list` command to use the proper ID
+   - [ ] Fix `delete` command to not delete all databases
+   - [ ] Test ALL commands
+   - [ ] have CLI daemonize API and Dashboard
+   - [X] Remove Admin from Config
+   - [ ] Add Windows Support
  - [ ] Test Dashboard Data Display and Interaction
     - [ ] Add Dashboard Login
     - [ ] Add API Event Logging
- - [ ] Create Typescript module
- - [ ] have CLI daemonize API and Dashboard
+ - [ ] Create Typescript module for direct API integration
  - [ ] Add TLS
- - [ ] Remove Admin from Config
+ - [ ] Improve Session Based Authentication
+    - [X] Add JWT
+    - [ ] Allow for Certificate Authentication
 
 ## Core Concepts
 

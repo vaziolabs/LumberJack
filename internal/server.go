@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/vaziolabs/lumberjack/cmd"
 	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
-func NewServer(port string) *Server {
+func NewServer(port string, config cmd.User) *Server {
 	router := mux.NewRouter()
 
 	server := &Server{
@@ -23,6 +24,16 @@ func NewServer(port string) *Server {
 			Addr:    ":" + port,
 			Handler: router,
 		},
+	}
+
+	// Create admin user from config
+	adminUser := core.User{
+		Username: config.Username,
+		Password: hashPassword(config.Password),
+	}
+
+	if err := server.forest.AssignUser(adminUser, core.AdminPermission); err != nil {
+		server.logger.Failure("Failed to save admin user: %v", err)
 	}
 
 	// Public routes
