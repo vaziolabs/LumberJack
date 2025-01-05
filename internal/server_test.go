@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vaziolabs/lumberjack/cmd"
 	"github.com/vaziolabs/lumberjack/internal/core"
 )
 
@@ -307,7 +308,7 @@ func TestForestOperations(t *testing.T) {
 		}
 
 		// Create new app and load state
-		newApp := NewServer("8080")
+		newApp := NewServer("8080", cmd.User{Username: "admin", Password: "admin"})
 		var loadedForest core.Node
 		if err := newApp.readChangesFromFile(testStateFile, &loadedForest); err != nil {
 			t.Fatalf("Failed to load state from file: %v", err)
