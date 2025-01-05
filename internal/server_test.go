@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 }
 
 func setupTestForest(t *testing.T) *Server {
-	server := NewServer("8080")
+	server := NewServer("8080", cmd.User{Username: "admin", Password: "admin"})
 	logger := NewLogger()
 	logger.Enter("Setting up test forest")
 	defer logger.Exit("Setting up test forest")
