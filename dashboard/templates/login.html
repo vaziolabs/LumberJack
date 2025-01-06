@@ -10,9 +10,9 @@
         <img src="/static/images/logo.png" alt="LumberJack Logo" class="logo" style="width: 20rem; height: 20rem;">
         <div class="login-container">
             <form id="loginForm">
-            <input type="text" id="username" placeholder="Username" required>
-            <input type="password" id="password" placeholder="Password" required>
-            <div id="error-message" class="error-message"></div>
+                <input type="text" id="username" placeholder="Username" autocomplete="username" required>
+                <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
+                <div id="error-message" class="error-message"></div>
                 <button type="submit">Login</button>
             </form>
         </div>

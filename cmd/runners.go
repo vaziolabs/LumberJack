@@ -42,7 +42,7 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 	defer logFile.Close()
 
 	// Prepare command with proper arguments
-	args := []string{"start", config.DBName}
+	args := []string{"start", config.DbName}
 	if withDashboard {
 		args = append(args, "-d")
 	}
@@ -71,7 +71,7 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 		APIPort:       config.Port,
 		DashboardPort: config.DashboardPort,
 		PID:           cmd.Process.Pid,
-		DBName:        config.DBName,
+		DbName:        config.DbName,
 		DashboardUp:   withDashboard,
 	}
 

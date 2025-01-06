@@ -16,28 +16,42 @@ import (
 )
 
 var (
-	testStateFile string // Global state file for all tests
-	logger        types.Logger
+	testDbPath string // Global state file for all tests
+	testDbName string // Global state file for all tests
+	testDbFile string // Global state file for all tests
+	logger     types.Logger
 )
 
 func TestMain(m *testing.M) {
 	// Setup test environment
-	tmpDir, err := os.MkdirTemp("", "core-test-*")
+	testDbName = "test_state"
+	testDbPath, err := os.MkdirTemp("", "core-test-*")
 	if err != nil {
 		log.Fatalf("Failed to create temp dir: %v", err)
 	}
-	testStateFile = filepath.Join(tmpDir, "test_state.dat")
+	testDbFile = filepath.Join(testDbPath, testDbName+".dat")
 	logger = types.NewLogger()
+
+	// Create empty database file
+	if _, err := os.Create(testDbFile); err != nil {
+		log.Fatalf("Failed to create test state file: %v", err)
+	}
+
 	// Run tests
 	code := m.Run()
 
 	// Cleanup
-	os.RemoveAll(tmpDir)
+	os.RemoveAll(testDbPath)
 	os.Exit(code)
 }
 
 func setupTestForest(t *testing.T) *Server {
-	server, err := NewServer(types.ServerConfig{Port: "8080"})
+	server, err := NewServer(types.ServerConfig{
+		Port:   "8080",
+		DbName: "test_state",
+		DbPath: filepath.Dir(testDbFile),
+		User:   types.User{Username: "admin", Password: "admin"},
+	})
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -68,7 +82,7 @@ func setupTestForest(t *testing.T) *Server {
 	root.AddChild(testNode)
 
 	// Save initial state
-	if err := server.writeChangesToFile(server.forest, testStateFile); err != nil {
+	if err := server.writeChangesToFile(server.forest, testDbFile); err != nil {
 		logger.Failure("Failed to write initial state: %v", err)
 	} else {
 		logger.Success("Saved initial state to file")
@@ -101,7 +115,7 @@ func TestForestOperations(t *testing.T) {
 		rootNode.Children[childNode2.ID] = childNode2
 		rootNode.Children[childNode3.ID] = childNode3
 
-		if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+		if err := server.writeChangesToFile(rootNode, testDbFile); err != nil {
 			logger.Failure("Failed to write state to file: %v", err)
 			t.Errorf("Failed to write state to file: %v", err)
 		} else {
@@ -207,7 +221,7 @@ func TestForestOperations(t *testing.T) {
 			logger.Success("Event found in storage")
 		}
 
-		if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+		if err := server.writeChangesToFile(rootNode, testDbFile); err != nil {
 			logger.Failure("Failed to write state to file: %v", err)
 		} else {
 			logger.Success("State saved to file")
@@ -303,7 +317,7 @@ func TestForestOperations(t *testing.T) {
 		logger.Enter("Persistence Verification")
 		defer logger.Exit("Persistence Verification")
 
-		if err := server.writeChangesToFile(rootNode, testStateFile); err != nil {
+		if err := server.writeChangesToFile(rootNode, testDbFile); err != nil {
 			logger.Failure("Failed to save final state: %v", err)
 			t.Error(err)
 		} else {
@@ -316,7 +330,7 @@ func TestForestOperations(t *testing.T) {
 			t.Fatalf("Failed to create server: %v", err)
 		}
 		var loadedForest core.Node
-		if err := newApp.readChangesFromFile(testStateFile, &loadedForest); err != nil {
+		if err := newApp.readChangesFromFile(testDbFile, &loadedForest); err != nil {
 			t.Fatalf("Failed to load state from file: %v", err)
 		}
 		newApp.forest = &loadedForest
@@ -442,7 +456,7 @@ func TestHandleAssignUser(t *testing.T) {
 	}
 
 	// Save state
-	if err := app.writeChangesToFile(app.forest, testStateFile); err != nil {
+	if err := app.writeChangesToFile(app.forest, testDbFile); err != nil {
 		logger.Failure("Failed to save state: %v", err)
 		t.Fatalf("Failed to save state: %v", err)
 	} else {

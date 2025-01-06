@@ -216,7 +216,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	config := loadConfig(dbName)
 	serverConfig := types.ServerConfig{
 		Port:    config.Port,
-		DBName:  dbName,
+		DbName:  dbName,
 		LogPath: defaultLogDir,
 		DbPath:  defaultLibDir,
 	}
@@ -251,7 +251,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 		Domain:        "localhost",
 		Port:          "8080",
 		DashboardPort: "8081",
-		DBName:        "",
+		DbName:        "",
 	}
 
 	user := types.User{
@@ -259,9 +259,9 @@ func createConfig(cmd *cobra.Command, args []string) {
 		Password: "admin",
 	}
 
-	defaultDBName := "default"
+	defaultDbName := "default"
 	if len(args) > 0 {
-		defaultDBName = args[0]
+		defaultDbName = args[0]
 	}
 
 	prompts := []struct {
@@ -269,7 +269,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 		field    *string
 		default_ string
 	}{
-		{"LumberJack Database Name", &dbConfig.DBName, defaultDBName},
+		{"LumberJack Database Name", &dbConfig.DbName, defaultDbName},
 		{"LumberJack Host Domain", &dbConfig.Domain, "localhost"},
 		{"LumberJack API Port", &dbConfig.Port, "8080"},
 		{"LumberJack Dashboard Port", &dbConfig.DashboardPort, "8081"},
@@ -310,7 +310,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 		dbName = args[0]
 	}
 
-	dbConfig.DBName = dbName
+	dbConfig.DbName = dbName
 	config.Databases[dbName] = dbConfig
 
 	viper.SetConfigName("config")
@@ -335,7 +335,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 	// Create initial server to save admin info
 	serverConfig := types.ServerConfig{
 		Port:    dbConfig.Port,
-		DBName:  dbName,
+		DbName:  dbName,
 		LogPath: defaultLogDir,
 		DbPath:  defaultLibDir,
 		User:    user,
@@ -385,7 +385,7 @@ func killServer(cmd *cobra.Command, args []string) {
 	var proc types.ProcessInfo
 	found := false
 	for _, p := range processes {
-		if p.ID == args[0] || p.DBName == args[0] {
+		if p.ID == args[0] || p.DbName == args[0] {
 			proc = p
 			found = true
 			break
@@ -543,7 +543,7 @@ func listRunning() {
 		}
 
 		fmt.Printf("ID: %s | Name: %s | API Port: %s | Dashboard Port: %s | Status: %s\n",
-			p.ID, p.DBName, p.APIPort, p.DashboardPort, status)
+			p.ID, p.DbName, p.APIPort, p.DashboardPort, status)
 	}
 }
 
@@ -580,7 +580,7 @@ func listConfig(cmd *cobra.Command, args []string) {
 		status := "Not Running"
 
 		for _, proc := range runningServers {
-			if proc.DBName == name {
+			if proc.DbName == name {
 				if proc.DashboardUp {
 					dashPort = fmt.Sprintf("%s (Running)", db.DashboardPort)
 				}
@@ -683,13 +683,13 @@ func restartServer(cmd *cobra.Command, args []string) {
 	}
 
 	// Start new server
-	config := loadConfig(proc.DBName)
+	config := loadConfig(proc.DbName)
 	if err := spawnServer(config, proc.DashboardUp); err != nil {
 		fmt.Printf("Error spawning server: %v\n", err)
 		return
 	}
 
-	fmt.Printf("Server %s restarted successfully\n", proc.DBName)
+	fmt.Printf("Server %s restarted successfully\n", proc.DbName)
 	if proc.DashboardUp {
 		fmt.Printf("Dashboard restarted at http://%s:%s\n", config.Domain, config.DashboardPort)
 	}

@@ -410,8 +410,8 @@ func (server *Server) handlePlanEvent(w http.ResponseWriter, r *http.Request) {
 
 // Add new handlers
 func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	server.logger.Enter("Login")
-	defer server.logger.Exit("Login")
+	server.logger.Enter("handleLogin")
+	defer server.logger.Exit("handleLogin")
 
 	var credentials struct {
 		Username string `json:"username"`
@@ -424,25 +424,35 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find user
-	var user *core.User
-	for _, u := range server.forest.Users {
-		if u.Username == credentials.Username {
-			user = &u
+	// Add debug logging
+	server.logger.Info("Attempting login for user: %s", credentials.Username)
+	server.logger.Info("Number of users in system: %d", len(server.forest.Users))
+
+	// Find user - using a pointer to avoid copying
+	var foundUser *core.User
+	for _, user := range server.forest.Users {
+		if user.Username == credentials.Username {
+			foundUser = &user
 			break
 		}
 	}
 
-	if user == nil || !user.VerifyPassword(credentials.Password) {
-		server.logger.Failure("Invalid credentials for user %s", credentials.Username)
+	if foundUser == nil {
+		server.logger.Failure("User not found: %s", credentials.Username)
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	if !foundUser.VerifyPassword(credentials.Password) {
+		server.logger.Failure("Invalid password for user: %s", credentials.Username)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
 	// Generate JWT token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id":  user.ID,
-		"username": user.Username,
+		"user_id":  foundUser.ID,
+		"username": foundUser.Username,
 		"exp":      time.Now().Add(server.jwtConfig.ExpiresIn).Unix(),
 	})
 
@@ -456,5 +466,5 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"token": tokenString,
 	})
-	server.logger.Success("Login successful for user %s", user.Username)
+	server.logger.Success("Login successful for user %s", foundUser.Username)
 }

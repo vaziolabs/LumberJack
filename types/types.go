@@ -6,7 +6,7 @@ type ProcessInfo struct {
 	DashboardPort string `json:"dashboard_port"`
 	DashboardUp   bool   `json:"dashboard_up"`
 	PID           int    `json:"pid"`
-	DBName        string `json:"db_name"`
+	DbName        string `json:"db_name"`
 }
 
 type Config struct {
@@ -18,7 +18,7 @@ type DBConfig struct {
 	Domain        string `yaml:"domain"`
 	Port          string `yaml:"port"`
 	DashboardPort string `yaml:"dashboardport"`
-	DBName        string `yaml:"dbname"`
+	DbName        string `yaml:"dbname"`
 }
 
 type User struct {
@@ -28,7 +28,7 @@ type User struct {
 
 type ServerConfig struct {
 	Port    string `json:"port"`
-	DBName  string `json:"db_name"`
+	DbName  string `json:"db_name"`
 	LogPath string `json:"log_path"`
 	DbPath  string `json:"db_path"`
 	User    User   `json:"user"`
