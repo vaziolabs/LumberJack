@@ -11,12 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vaziolabs/lumberjack/cmd"
 	"github.com/vaziolabs/lumberjack/internal/core"
+	"github.com/vaziolabs/lumberjack/types"
 )
 
 var (
 	testStateFile string // Global state file for all tests
+	logger        types.Logger
 )
 
 func TestMain(m *testing.M) {
@@ -26,7 +27,7 @@ func TestMain(m *testing.M) {
 		log.Fatalf("Failed to create temp dir: %v", err)
 	}
 	testStateFile = filepath.Join(tmpDir, "test_state.dat")
-
+	logger = types.NewLogger()
 	// Run tests
 	code := m.Run()
 
@@ -36,8 +37,11 @@ func TestMain(m *testing.M) {
 }
 
 func setupTestForest(t *testing.T) *Server {
-	server := NewServer("8080", cmd.User{Username: "admin", Password: "admin"})
-	logger := NewLogger()
+	server, err := NewServer(types.ServerConfig{Port: "8080"})
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+	logger := types.NewLogger()
 	logger.Enter("Setting up test forest")
 	defer logger.Exit("Setting up test forest")
 	root := server.forest
@@ -75,7 +79,6 @@ func setupTestForest(t *testing.T) *Server {
 }
 
 func TestForestOperations(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("ForestOperations")
 	defer logger.Exit("ForestOperations")
 
@@ -308,7 +311,10 @@ func TestForestOperations(t *testing.T) {
 		}
 
 		// Create new app and load state
-		newApp := NewServer("8080", cmd.User{Username: "admin", Password: "admin"})
+		newApp, err := NewServer(types.ServerConfig{Port: "8080"})
+		if err != nil {
+			t.Fatalf("Failed to create server: %v", err)
+		}
 		var loadedForest core.Node
 		if err := newApp.readChangesFromFile(testStateFile, &loadedForest); err != nil {
 			t.Fatalf("Failed to load state from file: %v", err)
@@ -325,7 +331,7 @@ func TestForestOperations(t *testing.T) {
 }
 
 func TestJsonSerialization(t *testing.T) {
-	logger := NewLogger()
+
 	logger.Enter("JsonSerialization")
 	defer logger.Exit("JsonSerialization")
 
@@ -405,7 +411,7 @@ func TestJsonSerialization(t *testing.T) {
 }
 
 func TestHandleAssignUser(t *testing.T) {
-	logger := NewLogger()
+
 	logger.Enter("HandleAssignUser")
 	defer logger.Exit("HandleAssignUser")
 
@@ -445,7 +451,7 @@ func TestHandleAssignUser(t *testing.T) {
 }
 
 func TestHandleGetTimeTracking(t *testing.T) {
-	logger := NewLogger()
+
 	logger.Enter("HandleGetTimeTracking")
 	defer logger.Exit("HandleGetTimeTracking")
 
@@ -486,7 +492,7 @@ func TestHandleGetTimeTracking(t *testing.T) {
 }
 
 func TestHandleGetEventEntries(t *testing.T) {
-	logger := NewLogger()
+
 	logger.Enter("HandleGetEventEntries")
 	defer logger.Exit("HandleGetEventEntries")
 
@@ -543,7 +549,7 @@ func TestHandleGetEventEntries(t *testing.T) {
 }
 
 func TestHandleEndEvent(t *testing.T) {
-	logger := NewLogger()
+
 	logger.Enter("HandleEndEvent")
 	defer logger.Exit("HandleEndEvent")
 
@@ -583,7 +589,6 @@ func TestHandleEndEvent(t *testing.T) {
 }
 
 func TestHandleAppendToEvent(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("HandleAppendToEvent")
 	defer logger.Exit("HandleAppendToEvent")
 
@@ -666,7 +671,6 @@ func TestHandleAppendToEvent(t *testing.T) {
 }
 
 func TestHandleStartEvent(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("HandleStartEvent")
 	defer logger.Exit("HandleStartEvent")
 
@@ -698,7 +702,6 @@ func TestHandleStartEvent(t *testing.T) {
 }
 
 func TestHandleAppendToEventWithCategories(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("HandleAppendToEventWithCategories")
 	defer logger.Exit("HandleAppendToEventWithCategories")
 
@@ -776,7 +779,6 @@ func TestHandleAppendToEventWithCategories(t *testing.T) {
 }
 
 func TestHandlePlanEvent(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("HandlePlanEvent")
 	defer logger.Exit("HandlePlanEvent")
 
@@ -829,7 +831,6 @@ func TestHandlePlanEvent(t *testing.T) {
 }
 
 func TestMultipleParentNodes(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("MultipleParentNodes")
 	defer logger.Exit("MultipleParentNodes")
 
@@ -913,7 +914,6 @@ func TestMultipleParentNodes(t *testing.T) {
 }
 
 func TestUserCreationAndAuthentication(t *testing.T) {
-	logger := NewLogger()
 	logger.Enter("UserCreationAndAuthentication")
 	defer logger.Exit("UserCreationAndAuthentication")
 

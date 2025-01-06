@@ -402,12 +402,16 @@ func (server *Server) handlePlanEvent(w http.ResponseWriter, r *http.Request) {
 
 // Add new handlers
 func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
+	server.logger.Enter("Login")
+	defer server.logger.Exit("Login")
+
 	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
+		server.logger.Failure("Invalid request: %v", err)
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
@@ -422,6 +426,7 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user == nil || !user.VerifyPassword(credentials.Password) {
+		server.logger.Failure("Invalid credentials for user %s", credentials.Username)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
@@ -435,6 +440,7 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	tokenString, err := token.SignedString(server.jwtConfig.SecretKey)
 	if err != nil {
+		server.logger.Failure("Failed to generate token: %v", err)
 		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
 		return
 	}
@@ -442,4 +448,5 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{
 		"token": tokenString,
 	})
+	server.logger.Success("Login successful for user %s", user.Username)
 }

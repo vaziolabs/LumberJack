@@ -2,11 +2,11 @@ package dashboard
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/vaziolabs/lumberjack/types"
 )
 
 const (
@@ -26,6 +26,7 @@ func NewDashboard(apiEndpoint string, port string) *DashboardServer {
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},
+		logger: types.NewLogger(),
 	}
 
 	// Serve static files
@@ -52,9 +53,9 @@ func NewDashboard(apiEndpoint string, port string) *DashboardServer {
 
 func (s *DashboardServer) Start() error {
 	go func() {
-		log.Printf("%s", "Dashboard server starting on http://localhost:"+s.server.Addr)
+		s.logger.Info("Dashboard server starting on http://localhost:" + s.server.Addr)
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Dashboard server error: %v", err)
+			s.logger.Failure("Dashboard server error: %v", err)
 		}
 	}()
 	return nil
@@ -62,6 +63,7 @@ func (s *DashboardServer) Start() error {
 
 func (s *DashboardServer) Shutdown(ctx context.Context) error {
 	if s.server != nil {
+		s.logger.Info("Shutting down dashboard server")
 		return s.server.Shutdown(ctx)
 	}
 	return nil

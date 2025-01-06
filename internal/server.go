@@ -21,7 +21,7 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 			SecretKey: []byte("your-secret-key"),
 			ExpiresIn: 24 * time.Hour,
 		},
-		logger: NewLogger(),
+		logger: types.NewLogger(),
 		server: &http.Server{
 			Addr:    ":" + config.Port,
 			Handler: router,
@@ -52,6 +52,7 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 			server.logger.Info("Database created successfully")
 		}
 
+		// We exit early if we are simply creating a new database
 		return nil, nil
 	} else {
 		server.logger.Failure("failed to create database: %v", err)
@@ -95,6 +96,7 @@ func (s *Server) Start() error {
 
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.server != nil {
+		s.logger.Info("Shutting down API server")
 		return s.server.Shutdown(ctx)
 	}
 	return nil

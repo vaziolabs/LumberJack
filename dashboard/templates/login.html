@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Login</title>
+    <title>LumberJack</title>
     <link rel="stylesheet" href="/static/css/login.css">
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
 </head>
 <body>
     <div class="container">
@@ -17,10 +18,27 @@
         </div>
     </div>
     <div class="version">
-        LumberJack v0.1.1-alpha<br>
-        © 2024 Vazio Labs
+        LumberJack <span id="version"></span><br>
+        © <span id="year"></span> Vazio Labs
     </div>
     <script>
+        // Fetch version from GitHub API tags
+        fetch('https://api.github.com/repos/vaziolabs/lumberjack/tags')
+            .then(response => response.json())
+            .then(data => {
+                if (data.length > 0) {
+                    document.getElementById('version').textContent = data[0].name;
+                } else {
+                    throw new Error('No tags found');
+                }
+            })
+            .catch(() => {
+                document.getElementById('version').textContent = 'Dashboard';
+            });
+
+        // Set current year
+        document.getElementById('year').textContent = new Date().getFullYear();
+
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const response = await fetch('/login', {

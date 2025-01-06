@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -44,6 +46,7 @@ Commands:
     kill [server-id]    Kill a running server
     logs [server-id]    View server logs
     delete             Delete current configuration
+    restart [server-id]  Restart a running server
 
 Flags:
     -d, --dashboard    Start with dashboard enabled
@@ -106,6 +109,18 @@ Example:
     lumberjack logs abc123xyz`,
 		Run: viewLogs,
 	}
+	restartCmd = &cobra.Command{
+		Use:   "restart [server-id]",
+		Short: "Restart a running server",
+		Long: `Restart a running server by its ID.
+If no ID is provided and only one server exists, it will be restarted.
+The dashboard will be restarted if it was running.
+
+Example:
+    lumberjack restart
+    lumberjack restart abc123xyz`,
+		Run: restartServer,
+	}
 )
 
 func init() {
@@ -115,6 +130,7 @@ func init() {
 	rootCmd.AddCommand(deleteCmd)
 	rootCmd.AddCommand(killCmd)
 	rootCmd.AddCommand(logsCmd)
+	rootCmd.AddCommand(restartCmd)
 
 	createCmd.AddCommand(newHelpCmd(createCmd))
 	startCmd.AddCommand(newHelpCmd(startCmd))
@@ -122,6 +138,7 @@ func init() {
 	deleteCmd.AddCommand(newHelpCmd(deleteCmd))
 	killCmd.AddCommand(newHelpCmd(killCmd))
 	logsCmd.AddCommand(newHelpCmd(logsCmd))
+	restartCmd.AddCommand(newHelpCmd(restartCmd))
 
 	startCmd.Flags().BoolVarP(&dashboardSet, "dashboard", "d", false, "Start with dashboard")
 	startCmd.Flags().StringVarP(&configFile, "config", "c", "", "Config file to use")
@@ -130,6 +147,9 @@ func init() {
 
 	deleteCmd.Flags().BoolVar(&deleteAll, "all", false, "Delete all configurations")
 	deleteCmd.Flags().BoolVar(&forceDelete, "force", false, "Force delete without confirmation")
+
+	logsCmd.Flags().IntP("lines", "n", 0, "Number of lines to show from the end")
+	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
 }
 
 var createCmd = &cobra.Command{
@@ -207,7 +227,8 @@ func runServer(cmd *cobra.Command, args []string) {
 	}
 
 	if dashboardSet {
-		dash := dashboard.NewDashboard(config.Domain, config.DashboardPort)
+		apiEndpoint := fmt.Sprintf("http://%s:%s", config.Domain, config.Port)
+		dash := dashboard.NewDashboard(apiEndpoint, config.DashboardPort)
 		dash.Start()
 	}
 
@@ -396,27 +417,95 @@ func viewLogs(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var logFile string
+	var proc types.ProcessInfo
+	found := false
 	for _, p := range processes {
 		if p.ID == args[0] {
-			logFile = getProcessFilePath(p.ID)
+			proc = p
+			found = true
 			break
 		}
 	}
 
-	if logFile == "" {
+	if !found {
 		fmt.Printf("Server %s not found\n", args[0])
 		return
 	}
 
-	logs, err := os.ReadFile(logFile)
+	logFile := filepath.Join(defaultLogDir, fmt.Sprintf("lumberjack-%s.log", proc.ID))
+	if _, err := os.Stat(logFile); err != nil {
+		fmt.Printf("Log file not found: %v\n", err)
+		return
+	}
+
+	lines, _ := cmd.Flags().GetInt("lines")
+	follow, _ := cmd.Flags().GetBool("follow")
+
+	if follow {
+		tailFile(logFile)
+		return
+	}
+
+	if lines > 0 {
+		showLastLines(logFile, lines)
+		return
+	}
+
+	// Show entire file if no flags specified
+	content, err := os.ReadFile(logFile)
 	if err != nil {
 		fmt.Printf("Error reading log file: %v\n", err)
 		return
 	}
+	fmt.Print(string(content))
+}
 
-	fmt.Printf("=== Logs for server %s ===\n", args[0])
-	fmt.Println(string(logs))
+func tailFile(filename string) {
+	file, err := os.Open(filename)
+	if err != nil {
+		fmt.Printf("Error opening file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Seek to end of file
+	file.Seek(0, 2)
+
+	for {
+		buffer := make([]byte, 1024)
+		n, err := file.Read(buffer)
+		if err != nil && err.Error() != "EOF" {
+			fmt.Printf("Error reading file: %v\n", err)
+			return
+		}
+		if n > 0 {
+			fmt.Print(string(buffer[:n]))
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func showLastLines(filename string, n int) {
+	file, err := os.Open(filename)
+	if err != nil {
+		fmt.Printf("Error opening file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lines := make([]string, 0)
+
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+		if len(lines) > n {
+			lines = lines[1:]
+		}
+	}
+
+	for _, line := range lines {
+		fmt.Println(line)
+	}
 }
 
 func listHandler(cmd *cobra.Command, args []string) {
@@ -534,5 +623,69 @@ func startServer(cmd *cobra.Command, args []string, user types.User) {
 	fmt.Printf("LumberJack %s server started at http://%s:%s\n", dbName, config.Domain, config.Port)
 	if dashboardSet {
 		fmt.Printf("Dashboard available at http://%s:%s\n", config.Domain, config.DashboardPort)
+	}
+}
+
+func restartServer(cmd *cobra.Command, args []string) {
+	processes, err := getRunningServers()
+	if err != nil {
+		fmt.Printf("Error getting running servers: %v\n", err)
+		return
+	}
+
+	if len(processes) == 0 {
+		fmt.Println("No running servers found")
+		return
+	}
+
+	var proc types.ProcessInfo
+	if len(args) == 0 {
+		if len(processes) > 1 {
+			fmt.Println("Multiple servers running, please specify server ID")
+			return
+		}
+		proc = processes[0]
+	} else {
+		found := false
+		for _, p := range processes {
+			if p.ID == args[0] {
+				proc = p
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Printf("Server %s not found\n", args[0])
+			return
+		}
+	}
+
+	// Kill existing server
+	process, err := os.FindProcess(proc.PID)
+	if err != nil {
+		fmt.Printf("Error finding process: %v\n", err)
+		return
+	}
+
+	if err := process.Kill(); err != nil {
+		fmt.Printf("Error killing process: %v\n", err)
+		return
+	}
+
+	if err := removeProcess(proc.ID); err != nil {
+		fmt.Printf("Error removing process from tracking: %v\n", err)
+		return
+	}
+
+	// Start new server
+	config := loadConfig(proc.DBName)
+	if err := spawnServer(config, proc.DashboardUp); err != nil {
+		fmt.Printf("Error spawning server: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Server %s restarted successfully\n", proc.DBName)
+	if proc.DashboardUp {
+		fmt.Printf("Dashboard restarted at http://%s:%s\n", config.Domain, config.DashboardPort)
 	}
 }

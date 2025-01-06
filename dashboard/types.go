@@ -3,11 +3,14 @@ package dashboard
 import (
 	"net/http"
 	"time"
+
+	"github.com/vaziolabs/lumberjack/types"
 )
 
 type DashboardServer struct {
 	apiEndpoint string
 	server      *http.Server
+	logger      types.Logger
 }
 
 type TreeNode struct {

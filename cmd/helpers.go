@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -14,24 +13,26 @@ import (
 )
 
 func generateID() string {
-	// Generate random 8 character string
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	result := make([]byte, 8)
-	for i := range result {
-		result[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(result)
-}
+	const (
+		charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		length  = 16
+	)
 
-func processExists(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
+	for {
+		result := make([]byte, length)
+		for i := range result {
+			result[i] = charset[rand.Intn(len(charset))]
+		}
 
-	// Send a signal 0 to the process to check if it is running
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+		id := string(result)
+		// Check if ID already exists in live process directory
+		if _, err := os.Stat(filepath.Join(defaultProcDir, "live", id)); os.IsNotExist(err) {
+			return id
+		} else {
+			// Retry if ID already exists
+			return generateID()
+		}
+	}
 }
 
 func deleteConfig(cmd *cobra.Command, args []string) {
@@ -63,6 +64,7 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 		}
 
 		if !forceDelete {
+			fmt.Println("Warning: This action is irreversible and will delete the database and all associated logs.")
 			fmt.Printf("Are you sure you want to delete database '%s'? [y/N]: ", dbName)
 			var response string
 			fmt.Scanln(&response)
@@ -72,23 +74,63 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 			}
 		}
 
+		// Delete database directory
+		dbPath := filepath.Join(defaultLibDir, dbName)
+		if err := os.RemoveAll(dbPath); err != nil {
+			fmt.Printf("Error deleting database files for %s: %v\n", dbName, err)
+		}
+
+		// Delete log directory
+		logPath := filepath.Join(defaultLogDir, dbName)
+		if err := os.RemoveAll(logPath); err != nil {
+			fmt.Printf("Error deleting logs for %s: %v\n", dbName, err)
+		}
+
+		// Delete .dat file
+		datFile := filepath.Join(defaultLibDir, dbName+".dat")
+		if err := os.Remove(datFile); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Error deleting database file for %s: %v\n", dbName, err)
+		}
+
 		delete(config.Databases, dbName)
 		if err := saveConfig(config); err != nil {
 			fmt.Printf("Error saving configuration: %v\n", err)
 			return
 		}
-		fmt.Printf("Database '%s' configuration deleted successfully\n", dbName)
+		fmt.Printf("Database '%s' configuration and files deleted successfully\n", dbName)
 		return
 	}
 
 	// Handle --all flag
 	if !forceDelete {
+		fmt.Println("Warning: This action is irreversible and will delete all databases and associated logs.")
 		fmt.Print("Are you sure you want to delete ALL configurations? [y/N]: ")
 		var response string
 		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
 			fmt.Println("Operation cancelled")
 			return
+		}
+	}
+
+	// Delete all database files and logs
+	for dbName := range config.Databases {
+		// Delete database directory
+		dbPath := filepath.Join(defaultLibDir, dbName)
+		if err := os.RemoveAll(dbPath); err != nil {
+			fmt.Printf("Error deleting database files for %s: %v\n", dbName, err)
+		}
+
+		// Delete log directory
+		logPath := filepath.Join(defaultLogDir, dbName)
+		if err := os.RemoveAll(logPath); err != nil {
+			fmt.Printf("Error deleting logs for %s: %v\n", dbName, err)
+		}
+
+		// Delete .dat file
+		datFile := filepath.Join(defaultLibDir, dbName+".dat")
+		if err := os.Remove(datFile); err != nil && !os.IsNotExist(err) {
+			fmt.Printf("Error deleting database file for %s: %v\n", dbName, err)
 		}
 	}
 
@@ -102,7 +144,7 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Println("All configurations deleted successfully")
+	fmt.Println("All configurations and associated files deleted successfully")
 }
 
 func saveConfig(config types.Config) error {

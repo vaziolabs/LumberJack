@@ -127,52 +127,73 @@ func (s *DashboardServer) handleLoginPage(w http.ResponseWriter, r *http.Request
 }
 
 func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	s.logger.Enter("Login")
+	defer s.logger.Exit("Login")
+
 	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
+		s.logger.Error("Error decoding login credentials: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	resp, err := http.Post(s.apiEndpoint+"/login", "application/json",
-		bytes.NewBuffer([]byte(`{"username":"`+credentials.Username+`","password":"`+credentials.Password+`"}`)))
+	// Create proper JSON payload
+	jsonData, err := json.Marshal(credentials)
 	if err != nil {
+		s.logger.Error("Error encoding login credentials: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Make request to API server
+	resp, err := http.Post(s.apiEndpoint+"/login", "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		s.logger.Error("Error making login request: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		http.Error(w, "Invalid credentials", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Error("Login request failed with status: %v", resp.StatusCode)
+		http.Error(w, string(body), resp.StatusCode)
 		return
 	}
 
-	var tokenResp struct {
+	// Parse the API response
+	var loginResponse struct {
 		Token string `json:"token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := json.NewDecoder(resp.Body).Decode(&loginResponse); err != nil {
+		s.logger.Error("Invalid response from server: %v", err)
+		http.Error(w, "Invalid response from server", http.StatusInternalServerError)
 		return
 	}
 
+	// Set the auth cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
-		Value:    tokenResp.Token,
+		Value:    loginResponse.Token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production with HTTPS
 	})
 
+	// Return success response
+	s.logger.Success("%s Login successful", credentials.Username)
 	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
 func (s *DashboardServer) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("auth_token")
 		if err != nil {
+			s.logger.Error("No auth token found")
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
