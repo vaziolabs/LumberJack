@@ -15,14 +15,14 @@ const (
 	AdminPermission
 )
 
-func NewDashboardServer(apiEndpoint string, dashboardPort string) *DashboardServer {
+func NewDashboardServer(apiEndpoint string, port string) *DashboardServer {
 	router := mux.NewRouter()
 
 	dashboardServer := &DashboardServer{
 		apiEndpoint: apiEndpoint,
 		server: &http.Server{
 			Handler:      router,
-			Addr:         ":" + dashboardPort,
+			Addr:         ":" + port,
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},
@@ -40,8 +40,6 @@ func NewDashboardServer(apiEndpoint string, dashboardPort string) *DashboardServ
 
 	// Main dashboard route
 	router.HandleFunc("/", dashboardServer.handleDashboard).Methods("GET")
-
-	log.Printf("%s", "Dashboard starting on http://localhost:"+dashboardPort)
 
 	return dashboardServer
 }

@@ -154,10 +154,11 @@ curl -X POST http://localhost:8080/start_event \
 
 #### Plan Event
 ```bash
-curl -X POST http://localhost:8080/plan_event/work/projects/project-alpha \
+curl -X POST http://localhost:8080/plan_event/ \
   -H "Content-Type: application/json" \
   -H "X-User-ID: user123" \
   -d '{
+    "path": "work/projects/project-alpha",
     "event_id": "sprint-2",
     "start_time": "2024-01-15T09:00:00Z",
     "end_time": "2024-01-29T17:00:00Z",
@@ -172,10 +173,11 @@ curl -X POST http://localhost:8080/plan_event/work/projects/project-alpha \
 
 #### Append to Event
 ```bash
-curl -X POST http://localhost:8080/append_event/work/projects/project-alpha \
+curl -X POST http://localhost:8080/append_event/ \
   -H "Content-Type: application/json" \
   -H "X-User-ID: user123" \
   -d '{
+    "path": "work/projects/project-alpha",
     "event_id": "sprint-1",
     "content": "Completed user authentication feature",
     "metadata": {
@@ -200,20 +202,35 @@ curl -X POST http://localhost:8080/end_event \
 
 #### Start Time Tracking
 ```bash
-curl -X POST http://localhost:8080/start_time_tracking/work/projects/project-alpha \
-  -H "X-User-ID: user123"
+curl -X POST http://localhost:8080/start_time_tracking/ \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: user123" \
+  -d '{
+    "path": "work/projects/project-alpha",
+    "event_id": "sprint-1"
+  }'
 ```
 
 #### Stop Time Tracking
 ```bash
-curl -X POST http://localhost:8080/stop_time_tracking/work/projects/project-alpha \
-  -H "X-User-ID: user123"
+curl -X POST http://localhost:8080/stop_time_tracking/ \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: user123" \
+  -d '{
+    "path": "work/projects/project-alpha",
+    "event_id": "sprint-1"
+  }'
 ```
 
 #### Get Time Tracking Summary
 ```bash
-curl -X GET http://localhost:8080/get_time_tracking/work/projects/project-alpha \
-  -H "X-User-ID: user123"
+curl -X GET http://localhost:8080/get_time_tracking/ \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: user123" \
+  -d '{
+    "path": "work/projects/project-alpha",
+    "event_id": "sprint-1"
+  }'
 ```
 
 ### Queries
@@ -231,8 +248,13 @@ curl -X POST http://localhost:8080/get_event_entries \
 
 #### Get Event Summary
 ```bash
-curl -X GET "http://localhost:8080/get_event_summary/work/projects/project-alpha?event_id=sprint-1" \
-  -H "X-User-ID: user123"
+curl -X GET http://localhost:8080/get_event_summary/ \
+  -H "Content-Type: application/json" \
+  -H "X-User-ID: user123" \
+  -d '{
+    "path": "work/projects/project-alpha",
+    "event_id": "sprint-1"
+  }'
 ```
 
 ## Response Formats

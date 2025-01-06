@@ -6,11 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 
-	"golang.org/x/exp/rand"
+	"github.com/vaziolabs/lumberjack/types"
 )
 
 var (
@@ -21,7 +20,7 @@ func getProcessFilePath(id string) string {
 	return filepath.Join("/var/lib/lumberjack", id+".dat")
 }
 
-func spawnServer(config DBConfig, withDashboard bool) error {
+func spawnServer(config types.DBConfig, withDashboard bool) error {
 	// Create unique ID for this instance
 	id := generateID()
 
@@ -42,8 +41,12 @@ func spawnServer(config DBConfig, withDashboard bool) error {
 	}
 	defer logFile.Close()
 
-	// Prepare command
-	cmd := exec.Command(os.Args[0], "start")
+	// Prepare command with proper arguments
+	args := []string{"start", config.DBName}
+	if withDashboard {
+		args = append(args, "-d")
+	}
+	cmd := exec.Command(os.Args[0], args...)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 
@@ -57,7 +60,7 @@ func spawnServer(config DBConfig, withDashboard bool) error {
 	}
 
 	// Save process info to individual .dat file
-	proc := ProcessInfo{
+	proc := types.ProcessInfo{
 		ID:            id,
 		APIPort:       config.Port,
 		DashboardPort: config.DashboardPort,
@@ -75,43 +78,47 @@ func spawnServer(config DBConfig, withDashboard bool) error {
 		return fmt.Errorf("failed to save process info: %v", err)
 	}
 
+	// Create live directory if it doesn't exist
+	if err := os.MkdirAll("/etc/lumberjack/live", 0755); err != nil {
+		return fmt.Errorf("failed to create live directory: %v", err)
+	}
+
+	// Create a file in /etc/lumberjack/live to track running process
+	liveFilePath := filepath.Join("/etc/lumberjack/live", id)
+	if err := os.WriteFile(liveFilePath, []byte{}, 0644); err != nil {
+		return fmt.Errorf("failed to create live process file: %v", err)
+	}
+
 	return nil
 }
 
-func getRunningServers() ([]ProcessInfo, error) {
+func getRunningServers() ([]types.ProcessInfo, error) {
 	processLock.RLock()
 	defer processLock.RUnlock()
 
-	files, err := os.ReadDir("/var/lib/lumberjack")
+	// Check live processes directory
+	liveFiles, err := os.ReadDir("/etc/lumberjack/live")
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []ProcessInfo{}, nil
+			return []types.ProcessInfo{}, nil
 		}
 		return nil, err
 	}
 
-	var processes []ProcessInfo
-	for _, file := range files {
-		if !strings.HasSuffix(file.Name(), ".dat") {
-			continue
-		}
-
-		data, err := os.ReadFile(filepath.Join("/var/lib/lumberjack", file.Name()))
+	var processes []types.ProcessInfo
+	for _, file := range liveFiles {
+		// Get process info from .dat file
+		data, err := os.ReadFile(filepath.Join("/var/lib/lumberjack", file.Name()+".dat"))
 		if err != nil {
 			continue
 		}
 
-		var proc ProcessInfo
+		var proc types.ProcessInfo
 		if err := json.Unmarshal(data, &proc); err != nil {
 			continue
 		}
 
-		if processExists(proc.PID) {
-			processes = append(processes, proc)
-		} else {
-			// Clean up .dat file for dead process
-			os.Remove(filepath.Join("/var/lib/lumberjack", file.Name()))
-		}
+		processes = append(processes, proc)
 	}
 
 	return processes, nil
@@ -121,26 +128,12 @@ func removeProcess(id string) error {
 	processLock.Lock()
 	defer processLock.Unlock()
 
-	return os.Remove(getProcessFilePath(id))
-}
-
-func processExists(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
+	// Remove the .dat file
+	if err := os.Remove(getProcessFilePath(id)); err != nil {
+		return err
 	}
 
-	// Send signal 0 to check if process exists
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
-}
-
-func generateID() string {
-	// Generate random 8 character string
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	result := make([]byte, 8)
-	for i := range result {
-		result[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(result)
+	// Remove the live process file
+	liveFilePath := filepath.Join("/etc/lumberjack/live", id)
+	return os.Remove(liveFilePath)
 }

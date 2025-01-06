@@ -9,6 +9,9 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/vaziolabs/lumberjack/dashboard"
+	"github.com/vaziolabs/lumberjack/internal"
+	"github.com/vaziolabs/lumberjack/types"
 )
 
 const (
@@ -44,6 +47,7 @@ Flags:
     -d, --dashboard    Start with dashboard enabled
     -c, --config       Specify config file to use`,
 		Run: func(cmd *cobra.Command, args []string) {
+			user := types.User{}
 			if exists := configExists(); !exists {
 				asciiArt, err := os.ReadFile("cmd/cli.ascii")
 				if err == nil {
@@ -51,7 +55,7 @@ Flags:
 				}
 				createConfig(cmd, args)
 			} else {
-				startServer(cmd, args)
+				startServer(cmd, args, user)
 			}
 		},
 	}
@@ -138,32 +142,26 @@ Example:
     lumberjack start mydb
     lumberjack start -d
     lumberjack start mydb -d`,
-	Run: startServer,
-}
-
-func configExists() bool {
-	_, err := os.Stat(filepath.Join(defaultProcDir, "config.yaml"))
-	return err == nil
-}
-
-func getConfigDir() string {
-	return defaultProcDir
+	Run: func(cmd *cobra.Command, args []string) {
+		user := types.User{}
+		startServer(cmd, args, user)
+	},
 }
 
 func createConfig(cmd *cobra.Command, args []string) {
-	config := Config{
+	config := types.Config{
 		Version:   "0.1.1-alpha",
-		Databases: make(map[string]DBConfig),
+		Databases: make(map[string]types.DBConfig),
 	}
 
-	dbConfig := DBConfig{
+	dbConfig := types.DBConfig{
 		Domain:        "localhost",
 		Port:          "8080",
 		DashboardPort: "8081",
 		DBName:        "",
 	}
 
-	user := User{
+	user := types.User{
 		Username: "admin",
 		Password: "admin",
 	}
@@ -173,12 +171,12 @@ func createConfig(cmd *cobra.Command, args []string) {
 		field    *string
 		default_ string
 	}{
-		{"LumberJack Database Name", &dbConfig.DBName, ""},
-		{"LumberJack Host Domain [localhost]", &dbConfig.Domain, "localhost"},
-		{"LumberJack API Port [8080]", &dbConfig.Port, "8080"},
-		{"LumberJack Dashboard Port [8081]", &dbConfig.DashboardPort, "8081"},
-		{"Admin Username [admin]", &user.Username, "admin"},
-		{"Admin Password [admin]", &user.Password, "admin"},
+		{"LumberJack Database Name", &dbConfig.DBName, "default"},
+		{"LumberJack Host Domain", &dbConfig.Domain, "localhost"},
+		{"LumberJack API Port", &dbConfig.Port, "8080"},
+		{"LumberJack Dashboard Port", &dbConfig.DashboardPort, "8081"},
+		{"Admin Username", &user.Username, "admin"},
+		{"Admin Password", &user.Password, "admin"},
 	}
 
 	for _, p := range prompts {
@@ -197,12 +195,13 @@ func createConfig(cmd *cobra.Command, args []string) {
 		*p.field = result
 	}
 
-	configKey := dbConfig.DBName
-	if configKey == "" {
-		configKey = "default"
+	dbName := "default"
+	if len(args) > 0 {
+		dbName = args[0]
 	}
 
-	config.Databases[configKey] = dbConfig
+	dbConfig.DBName = dbName
+	config.Databases[dbName] = dbConfig
 
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -216,7 +215,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := os.MkdirAll(filepath.Join(defaultLibDir, configKey), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(defaultLibDir, dbName), 0755); err != nil {
 		fmt.Printf("Error creating database directory: %v\n", err)
 		os.Exit(1)
 	}
@@ -224,7 +223,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 	fmt.Println("Configuration created successfully!")
 }
 
-func startServer(cmd *cobra.Command, args []string) {
+func startServer(cmd *cobra.Command, args []string, user types.User) {
 	configDir := getConfigDir()
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -235,7 +234,7 @@ func startServer(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var config Config
+	var config types.Config
 	if err := viper.Unmarshal(&config); err != nil {
 		fmt.Printf("Error parsing config: %v\n", err)
 		os.Exit(1)
@@ -252,12 +251,29 @@ func startServer(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	if err := spawnServer(dbConfig, dashboardSet); err != nil {
-		fmt.Printf("Error spawning server: %v\n", err)
-		os.Exit(1)
+	// Initialize and start the server
+	server := internal.NewServer(dbConfig.Port, user)
+	server.Start()
+
+	// Initialize and start dashboard if enabled
+	if dashboardSet {
+		dashboardServer := dashboard.NewDashboardServer(
+			fmt.Sprintf("http://%s:%s", dbConfig.Domain, dbConfig.Port),
+			dbConfig.DashboardPort,
+		)
+		if err := dashboardServer.Start(); err != nil {
+			fmt.Printf("Error starting dashboard: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	fmt.Println("Server started successfully in background")
+	fmt.Printf("LumberJack %s server running on %s:%s\n", dbConfig.DBName, dbConfig.Domain, dbConfig.Port)
+	if dashboardSet {
+		fmt.Printf("LumberJack %s dashboard running on %s:%s\n", dbConfig.DBName, dbConfig.Domain, dbConfig.DashboardPort)
+	}
+
+	// Keep the process running
+	select {}
 }
 
 func killServer(cmd *cobra.Command, args []string) {
@@ -272,7 +288,7 @@ func killServer(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var proc ProcessInfo
+	var proc types.ProcessInfo
 	found := false
 	for _, p := range processes {
 		if p.ID == args[0] {
@@ -356,7 +372,6 @@ func listHandler(cmd *cobra.Command, args []string) {
 }
 
 func listRunning() {
-	// Get list of running servers from process file
 	processes, err := getRunningServers()
 	if err != nil {
 		fmt.Printf("Error getting running servers: %v\n", err)
@@ -370,8 +385,14 @@ func listRunning() {
 
 	fmt.Println("Running Servers:")
 	for _, p := range processes {
-		fmt.Printf("ID: %s | API Port: %s | Dashboard Port: %s\n",
-			p.ID, p.APIPort, p.DashboardPort)
+		liveFilePath := filepath.Join("/etc/lumberjack/live", p.ID)
+		status := "Not Running"
+		if _, err := os.Stat(liveFilePath); err == nil {
+			status = "Running"
+		}
+
+		fmt.Printf("ID: %s | Name: %s | API Port: %s | Dashboard Port: %s | Status: %s\n",
+			p.ID, p.DBName, p.APIPort, p.DashboardPort, status)
 	}
 }
 
@@ -386,62 +407,36 @@ func listConfig(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var config Config
+	var config types.Config
 	if err := viper.Unmarshal(&config); err != nil {
 		fmt.Printf("Error parsing config: %v\n", err)
 		return
 	}
 
-	// Show detailed config for specific database
-	if len(args) > 1 {
-		dbConfig, exists := config.Databases[args[1]]
-		if !exists {
-			fmt.Printf("Database configuration '%s' not found\n", args[1])
-			return
-		}
-
-		fmt.Printf("\nConfiguration for %s:\n", args[1])
-		fmt.Printf("Domain: %s\n", dbConfig.Domain)
-		fmt.Printf("API Port: %s\n", dbConfig.Port)
-		fmt.Printf("Dashboard Port: %s\n", dbConfig.DashboardPort)
-		fmt.Printf("Database Name: %s\n", dbConfig.DBName)
+	// Get running servers to check status
+	runningServers, err := getRunningServers()
+	if err != nil {
+		fmt.Printf("Error getting running servers: %v\n", err)
 		return
 	}
 
-	// List all databases in table format
-	fmt.Printf("\nConfigured Databases:\n")
-	fmt.Printf("%-20s %-15s %-10s %-15s\n", "ID", "Name", "API Port", "Dashboard Port")
-	fmt.Println(strings.Repeat("-", 65))
+	fmt.Printf("%-15s %-10s %-15s %-10s\n", "Name", "API Port", "Dashboard Port", "Status")
+	fmt.Println(strings.Repeat("-", 55))
 
-	for id, db := range config.Databases {
-		fmt.Printf("%-20s %-15s %-10s %-15s\n",
-			id,
-			db.DBName,
+	for name, db := range config.Databases {
+		status := "Not Running"
+		for _, proc := range runningServers {
+			if proc.DBName == name {
+				status = fmt.Sprintf("Running (%s)", proc.ID)
+				break
+			}
+		}
+
+		fmt.Printf("%-15s %-10s %-15s %-10s\n",
+			name,
 			db.Port,
-			db.DashboardPort)
-	}
-}
-
-func deleteConfig(cmd *cobra.Command, args []string) {
-	configDir := getConfigDir()
-	configFile := filepath.Join(configDir, "config.yaml")
-
-	if err := os.Remove(configFile); err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("No configuration file found.")
-			return
-		}
-		fmt.Printf("Error deleting config: %v\n", err)
-		return
-	}
-
-	fmt.Println("Configuration deleted successfully!")
-}
-
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+			db.DashboardPort,
+			status)
 	}
 }
 

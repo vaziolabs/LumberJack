@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/vaziolabs/lumberjack/cmd"
 	"github.com/vaziolabs/lumberjack/internal/core"
+	"github.com/vaziolabs/lumberjack/types"
 )
 
-func NewServer(port string, config cmd.User) *Server {
+func NewServer(port string, config types.User) *Server {
 	router := mux.NewRouter()
 
 	server := &Server{
@@ -58,7 +58,7 @@ func NewServer(port string, config cmd.User) *Server {
 
 func (s *Server) Start() {
 	go func() {
-		s.logger.Info("API server starting on http://localhost:" + s.server.Addr)
+		s.logger.Info("API server starting on http://localhost" + s.server.Addr)
 		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Failure("API server error: %v", err)
 		}
