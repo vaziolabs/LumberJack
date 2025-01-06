@@ -15,7 +15,7 @@ const (
 	AdminPermission
 )
 
-func NewDashboardServer(apiEndpoint string, port string) *DashboardServer {
+func NewDashboard(apiEndpoint string, port string) *DashboardServer {
 	router := mux.NewRouter()
 
 	dashboardServer := &DashboardServer{
@@ -31,15 +31,21 @@ func NewDashboardServer(apiEndpoint string, port string) *DashboardServer {
 	// Serve static files
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("dashboard/static"))))
 
-	// API routes
-	router.HandleFunc("/api/tree", dashboardServer.handleGetTree).Methods("GET")
-	router.HandleFunc("/api/events", dashboardServer.handleGetEvents).Methods("GET")
-	router.HandleFunc("/api/logs", dashboardServer.handleGetLogs).Methods("GET")
-	router.HandleFunc("/api/users", dashboardServer.handleGetUsers).Methods("GET")
-	router.HandleFunc("/api/users", dashboardServer.handleCreateUser).Methods("POST")
+	// Auth routes
+	router.HandleFunc("/login", dashboardServer.handleLogin).Methods("POST")
 
-	// Main dashboard route
-	router.HandleFunc("/", dashboardServer.handleDashboard).Methods("GET")
+	// Protected API routes
+	protected := router.PathPrefix("/api").Subrouter()
+	protected.Use(dashboardServer.authMiddleware)
+	protected.HandleFunc("/tree", dashboardServer.handleGetTree).Methods("GET")
+	protected.HandleFunc("/events", dashboardServer.handleGetEvents).Methods("GET")
+	protected.HandleFunc("/logs", dashboardServer.handleGetLogs).Methods("GET")
+	protected.HandleFunc("/users", dashboardServer.handleGetUsers).Methods("GET")
+	protected.HandleFunc("/users", dashboardServer.handleCreateUser).Methods("POST")
+
+	// Main dashboard routes
+	router.HandleFunc("/", dashboardServer.handleLoginPage).Methods("GET")
+	router.Handle("/dashboard", dashboardServer.authMiddleware(http.HandlerFunc(dashboardServer.handleDashboard))).Methods("GET")
 
 	return dashboardServer
 }

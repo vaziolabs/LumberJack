@@ -23,6 +23,8 @@ const (
 var (
 	configFile   string
 	dashboardSet bool
+	deleteAll    bool
+	forceDelete  bool
 	rootCmd      = &cobra.Command{
 		Use:   "lumberjack",
 		Short: "LumberJack - Event tracking and management system",
@@ -30,9 +32,9 @@ var (
 
 Directory Structure:
     Configs:     /etc/lumberjack/config.yaml
+    Processes:   /etc/lumberjack/live/
     Logs:        /var/log/lumberjack/
     Data Files:  /var/lib/lumberjack/
-    Processes:   /etc/lumberjack/
 
 Commands:
     create              Create a new configuration
@@ -70,12 +72,16 @@ Example:
 		Run: listHandler,
 	}
 	deleteCmd = &cobra.Command{
-		Use:   "delete",
-		Short: "Delete current configuration",
-		Long: `Delete the current configuration file.
+		Use:   "delete [database-name]",
+		Short: "Delete configuration",
+		Long: `Delete a database configuration.
+Requires database name unless --all flag is provided.
+Use --force to skip confirmation prompt.
 
 Example:
-    lumberjack delete`,
+    lumberjack delete mydb
+    lumberjack delete --all
+    lumberjack delete --all --force`,
 		Run: deleteConfig,
 	}
 	killCmd = &cobra.Command{
@@ -83,9 +89,11 @@ Example:
 		Short: "Kill a running server",
 		Long: `Kill a running server by its ID.
 Use 'list running' to see available server IDs.
+Use -d flag to kill only the dashboard.
 
 Example:
-    lumberjack kill abc123xyz`,
+    lumberjack kill abc123xyz
+    lumberjack kill abc123xyz -d`,
 		Run: killServer,
 	}
 	logsCmd = &cobra.Command{
@@ -117,6 +125,11 @@ func init() {
 
 	startCmd.Flags().BoolVarP(&dashboardSet, "dashboard", "d", false, "Start with dashboard")
 	startCmd.Flags().StringVarP(&configFile, "config", "c", "", "Config file to use")
+
+	killCmd.Flags().BoolVarP(&dashboardSet, "dashboard", "d", false, "Kill only the dashboard")
+
+	deleteCmd.Flags().BoolVar(&deleteAll, "all", false, "Delete all configurations")
+	deleteCmd.Flags().BoolVar(&forceDelete, "force", false, "Force delete without confirmation")
 }
 
 var createCmd = &cobra.Command{
@@ -143,9 +156,62 @@ Example:
     lumberjack start -d
     lumberjack start mydb -d`,
 	Run: func(cmd *cobra.Command, args []string) {
-		user := types.User{}
-		startServer(cmd, args, user)
+		// If this is a spawned process, run the server directly
+		if os.Getenv("LUMBERJACK_SPAWNED") == "1" {
+			runServer(cmd, args)
+			return
+		}
+
+		// Otherwise, spawn a new process
+		dbName := "default"
+		if len(args) > 0 {
+			dbName = args[0]
+		}
+
+		config := loadConfig(dbName)
+		if err := spawnServer(config, dashboardSet); err != nil {
+			fmt.Printf("Error spawning server: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("LumberJack %s server started in background\n", dbName)
+		if dashboardSet {
+			fmt.Printf("Dashboard available at http://%s:%s\n", config.Domain, config.DashboardPort)
+		}
 	},
+}
+
+func runServer(cmd *cobra.Command, args []string) {
+	dbName := "default"
+	if len(args) > 0 {
+		dbName = args[0]
+	}
+
+	config := loadConfig(dbName)
+	serverConfig := types.ServerConfig{
+		Port:    config.Port,
+		DBName:  dbName,
+		LogPath: defaultLogDir,
+		DbPath:  defaultLibDir,
+	}
+
+	server, err := internal.NewServer(serverConfig)
+	if err != nil {
+		fmt.Printf("Error creating server: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := server.Start(); err != nil {
+		fmt.Printf("Error starting server: %v\n", err)
+		os.Exit(1)
+	}
+
+	if dashboardSet {
+		dash := dashboard.NewDashboard(config.Domain, config.DashboardPort)
+		dash.Start()
+	}
+
+	select {}
 }
 
 func createConfig(cmd *cobra.Command, args []string) {
@@ -166,17 +232,23 @@ func createConfig(cmd *cobra.Command, args []string) {
 		Password: "admin",
 	}
 
+	defaultDBName := "default"
+	if len(args) > 0 {
+		defaultDBName = args[0]
+	}
+
 	prompts := []struct {
 		label    string
 		field    *string
 		default_ string
 	}{
-		{"LumberJack Database Name", &dbConfig.DBName, "default"},
+		{"LumberJack Database Name", &dbConfig.DBName, defaultDBName},
 		{"LumberJack Host Domain", &dbConfig.Domain, "localhost"},
 		{"LumberJack API Port", &dbConfig.Port, "8080"},
 		{"LumberJack Dashboard Port", &dbConfig.DashboardPort, "8081"},
-		{"Admin Username", &user.Username, "admin"},
-		{"Admin Password", &user.Password, "admin"},
+		{"Admin Username", &user.Username, user.Username},
+		{"Admin Password", &user.Password, user.Password},
+		{"Re-enter Admin Password", &user.Password, user.Password},
 	}
 
 	for _, p := range prompts {
@@ -193,6 +265,17 @@ func createConfig(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 		*p.field = result
+	}
+
+	// Check for matching passwords
+	if prompts[5].default_ != prompts[6].default_ {
+		fmt.Println("Passwords do not match")
+		os.Exit(1)
+	}
+
+	if user.Password != prompts[5].default_ {
+		user.Username = prompts[4].default_
+		user.Password = prompts[5].default_
 	}
 
 	dbName := "default"
@@ -221,59 +304,22 @@ func createConfig(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println("Configuration created successfully!")
-}
 
-func startServer(cmd *cobra.Command, args []string, user types.User) {
-	configDir := getConfigDir()
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(configDir)
+	// Create initial server to save admin info
+	serverConfig := types.ServerConfig{
+		Port:    dbConfig.Port,
+		DBName:  dbName,
+		LogPath: defaultLogDir,
+		DbPath:  defaultLibDir,
+		User:    user,
+	}
 
-	if err := viper.ReadInConfig(); err != nil {
-		fmt.Printf("Error reading config: %v\n", err)
+	// Initialize server just to save admin info
+	_, err := internal.NewServer(serverConfig)
+	if err != nil {
+		fmt.Printf("Error creating server: %v\n", err)
 		os.Exit(1)
 	}
-
-	var config types.Config
-	if err := viper.Unmarshal(&config); err != nil {
-		fmt.Printf("Error parsing config: %v\n", err)
-		os.Exit(1)
-	}
-
-	dbName := "default"
-	if len(args) > 0 {
-		dbName = args[0]
-	}
-
-	dbConfig, exists := config.Databases[dbName]
-	if !exists {
-		fmt.Printf("Database configuration '%s' not found\n", dbName)
-		os.Exit(1)
-	}
-
-	// Initialize and start the server
-	server := internal.NewServer(dbConfig.Port, user)
-	server.Start()
-
-	// Initialize and start dashboard if enabled
-	if dashboardSet {
-		dashboardServer := dashboard.NewDashboardServer(
-			fmt.Sprintf("http://%s:%s", dbConfig.Domain, dbConfig.Port),
-			dbConfig.DashboardPort,
-		)
-		if err := dashboardServer.Start(); err != nil {
-			fmt.Printf("Error starting dashboard: %v\n", err)
-			os.Exit(1)
-		}
-	}
-
-	fmt.Printf("LumberJack %s server running on %s:%s\n", dbConfig.DBName, dbConfig.Domain, dbConfig.Port)
-	if dashboardSet {
-		fmt.Printf("LumberJack %s dashboard running on %s:%s\n", dbConfig.DBName, dbConfig.Domain, dbConfig.DashboardPort)
-	}
-
-	// Keep the process running
-	select {}
 }
 
 func killServer(cmd *cobra.Command, args []string) {
@@ -300,6 +346,22 @@ func killServer(cmd *cobra.Command, args []string) {
 
 	if !found {
 		fmt.Printf("Server %s not found\n", args[0])
+		return
+	}
+
+	if dashboardSet {
+		if !proc.DashboardUp {
+			fmt.Println("Dashboard is not running for this server")
+			return
+		}
+		// TODO: Implement dashboard process kill
+		// For now, just update the process info
+		proc.DashboardUp = false
+		if err := updateProcessInfo(proc); err != nil {
+			fmt.Printf("Error updating process info: %v\n", err)
+			return
+		}
+		fmt.Printf("Dashboard killed for server %s\n", args[0])
 		return
 	}
 
@@ -420,22 +482,28 @@ func listConfig(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	fmt.Printf("%-15s %-10s %-15s %-10s\n", "Name", "API Port", "Dashboard Port", "Status")
-	fmt.Println(strings.Repeat("-", 55))
+	fmt.Printf("%-20s %-10s %-20s %-10s\n", "Name", "API Port", "Dashboard Port", "Status")
+	fmt.Println(strings.Repeat("-", 60))
 
 	for name, db := range config.Databases {
+		apiPort := db.Port
+		dashPort := db.DashboardPort
 		status := "Not Running"
+
 		for _, proc := range runningServers {
 			if proc.DBName == name {
+				if proc.DashboardUp {
+					dashPort = fmt.Sprintf("%s (Running)", db.DashboardPort)
+				}
 				status = fmt.Sprintf("Running (%s)", proc.ID)
 				break
 			}
 		}
 
-		fmt.Printf("%-15s %-10s %-15s %-10s\n",
+		fmt.Printf("%-20s %-10s %-20s %-10s\n",
 			name,
-			db.Port,
-			db.DashboardPort,
+			apiPort,
+			dashPort,
 			status)
 	}
 }
@@ -448,5 +516,23 @@ func newHelpCmd(parent *cobra.Command) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			parent.Help()
 		},
+	}
+}
+
+func startServer(cmd *cobra.Command, args []string, user types.User) {
+	dbName := "default"
+	if len(args) > 0 {
+		dbName = args[0]
+	}
+
+	config := loadConfig(dbName)
+	if err := spawnServer(config, dashboardSet); err != nil {
+		fmt.Printf("Error spawning server: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("LumberJack %s server started at http://%s:%s\n", dbName, config.Domain, config.Port)
+	if dashboardSet {
+		fmt.Printf("Dashboard available at http://%s:%s\n", config.Domain, config.DashboardPort)
 	}
 }

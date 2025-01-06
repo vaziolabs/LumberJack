@@ -56,37 +56,41 @@ func (server *Server) writeChangesToFile(data interface{}, filename string) erro
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
-	// Marshal the data to JSON
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
 
-	// Create a hash of the JSON data
 	hash := sha256.New()
 	hash.Write(jsonData)
-	hashedData := hash.Sum(nil)
+	newHash := hash.Sum(nil)
 
-	// Create the file
+	// Skip writing if data hasn't changed
+	if server.lastHash != nil && compareHashes(server.lastHash, newHash) {
+		return nil
+	}
+
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	// Write the hash to the file header
-	_, err = file.Write(hashedData)
+	_, err = file.Write(newHash)
 	if err != nil {
 		return err
 	}
 
-	// Create a gzip writer to compress the JSON data
 	gzipWriter := gzip.NewWriter(file)
 	defer gzipWriter.Close()
 
-	// Write the JSON data to the gzip writer
 	_, err = gzipWriter.Write(jsonData)
-	return err
+	if err != nil {
+		return err
+	}
+
+	server.lastHash = newHash
+	return nil
 }
 
 // ReadChangesFromFile reads the hash and compressed data from the file, decompresses and validates it.
@@ -131,6 +135,8 @@ func (server *Server) readChangesFromFile(filename string, data interface{}) err
 	if err != nil {
 		return err
 	}
+
+	server.lastHash = hash
 
 	return nil
 }

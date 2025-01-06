@@ -4,6 +4,7 @@ type ProcessInfo struct {
 	ID            string `json:"id"`
 	APIPort       string `json:"api_port"`
 	DashboardPort string `json:"dashboard_port"`
+	DashboardUp   bool   `json:"dashboard_up"`
 	PID           int    `json:"pid"`
 	DBName        string `json:"db_name"`
 }
@@ -23,4 +24,12 @@ type DBConfig struct {
 type User struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+type ServerConfig struct {
+	Port    string `json:"port"`
+	DBName  string `json:"db_name"`
+	LogPath string `json:"log_path"`
+	DbPath  string `json:"db_path"`
+	User    User   `json:"user"`
 }

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login</title>
+    <link rel="stylesheet" href="/static/css/login.css">
+</head>
+<body>
+    <div class="container">
+        <img src="/static/images/logo.png" alt="LumberJack Logo" class="logo" style="width: 20rem; height: 20rem;">
+        <div class="login-container">
+            <form id="loginForm">
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="password" id="password" placeholder="Password" required>
+            <div id="error-message" class="error-message"></div>
+                <button type="submit">Login</button>
+            </form>
+        </div>
+    </div>
+    <div class="version">
+        LumberJack v0.1.1-alpha<br>
+        © 2024 Vazio Labs
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                }),
+            });
+            if (response.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                document.getElementById('error-message').textContent = 'Incorrect Username or Password';
+            }
+        });
+    </script>
+</body>
+</html>

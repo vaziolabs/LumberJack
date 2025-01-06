@@ -20,4 +20,5 @@ type Server struct {
 	jwtConfig JWTConfig
 	logger    Logger
 	server    *http.Server
+	lastHash  []byte
 }

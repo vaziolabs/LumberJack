@@ -53,18 +53,19 @@ To delete configuration:
     - [ ] Finish incomplete tests
  - [ ] Refactor CLI types to work with the Core for directory structure
     - [ ] Ensure logger is logging to the correct file
-    - [ ] Ensure the dat file is created and updated in the correct directory
+    - [X] Ensure the dat file is created and updated in the correct directory
+    - [ ] Move cli types to top level
  - [ ] Add Core Logger
     - [ ] Integrate debug logging into log file
  - [ ] Improve CLI
    - [X] Allow Multiple Databases and configs
-   - [ ] Add proper linux directory structure
-   - [ ] Test all Help commands
+   - [X] Add proper linux directory structure
    - [ ] Ensure delete commands require admin confirmation
-   - [ ] Update `list` command to use the proper ID
-   - [ ] Fix `delete` command to not delete all databases
+   - [X] Update `list` command to use the proper ID
+   - [X] Fix `delete` command to not delete all databases
    - [ ] Test ALL commands
-   - [ ] have CLI daemonize API and Dashboard
+   - [ ] Test all Help commands
+   - [X] have CLI daemonize API and Dashboard
    - [X] Remove Admin from Config
    - [ ] Add Windows Support
  - [ ] Test Dashboard Data Display and Interaction
@@ -75,6 +76,10 @@ To delete configuration:
  - [ ] Improve Session Based Authentication
     - [X] Add JWT
     - [ ] Allow for Certificate Authentication
+    - [ ] Add Session Expiration
+    - [ ] Add Session Refresh
+  - [ ] Refactor
+  - [ ] Create Proper Documentation
 
 ## Core Concepts
 

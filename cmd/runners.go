@@ -47,17 +47,23 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 		args = append(args, "-d")
 	}
 	cmd := exec.Command(os.Args[0], args...)
+	cmd.Env = append(os.Environ(), "LUMBERJACK_SPAWNED=1")
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 
-	// Set process to run in background
+	// Detach process completely from parent
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
+		Pgid:    0, // Force into new process group
 	}
 
+	// Ensure process continues running after parent exits
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start server: %v", err)
 	}
+
+	// Don't wait for the process
+	go cmd.Process.Release()
 
 	// Save process info to individual .dat file
 	proc := types.ProcessInfo{
@@ -66,6 +72,7 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 		DashboardPort: config.DashboardPort,
 		PID:           cmd.Process.Pid,
 		DBName:        config.DBName,
+		DashboardUp:   withDashboard,
 	}
 
 	data, err := json.Marshal(proc)
