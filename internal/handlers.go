@@ -322,6 +322,9 @@ func (server *Server) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 // HTTP handler for creating a user
 func (server *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	server.logger.Enter("CreateUser")
+	defer server.logger.Exit("CreateUser")
+
 	var request struct {
 		Username string `json:"username"`
 		Email    string `json:"email"`
@@ -329,6 +332,7 @@ func (server *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		server.logger.Failure("Failed to decode request: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -341,23 +345,27 @@ func (server *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := user.SetPassword(request.Password); err != nil {
+		server.logger.Failure("Failed to set password: %v", err)
 		http.Error(w, "Failed to set password", http.StatusInternalServerError)
 		return
 	}
 
 	// Add user to the root node
 	if err := server.forest.AssignUser(user, core.ReadPermission); err != nil {
+		server.logger.Failure("Failed to assign user: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Save state
 	if err := server.writeChangesToFile(server.forest, "state_file.dat"); err != nil {
+		server.logger.Failure("Failed to save state: %v", err)
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+	server.logger.Success("User created successfully")
 }
 
 func (server *Server) handlePlanEvent(w http.ResponseWriter, r *http.Request) {

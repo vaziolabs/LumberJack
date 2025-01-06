@@ -41,12 +41,58 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	if deleteAll {
+		if !forceDelete {
+			fmt.Println("Warning: This action is irreversible and will delete all databases and associated logs.")
+			fmt.Print("Are you sure you want to delete ALL configurations? [y/N]: ")
+			var response string
+			fmt.Scanln(&response)
+			if response != "y" && response != "Y" {
+				fmt.Println("Operation cancelled")
+				return
+			}
+		}
+
+		// Clean up /var/lib/lumberjack
+		if err := os.RemoveAll(defaultLibDir); err != nil {
+			fmt.Printf("Error cleaning up %s: %v\n", defaultLibDir, err)
+		}
+		if err := os.MkdirAll(defaultLibDir, 0755); err != nil {
+			fmt.Printf("Error recreating %s: %v\n", defaultLibDir, err)
+		}
+
+		// Clean up /var/log/lumberjack
+		if err := os.RemoveAll(defaultLogDir); err != nil {
+			fmt.Printf("Error cleaning up %s: %v\n", defaultLogDir, err)
+		}
+		if err := os.MkdirAll(defaultLogDir, 0755); err != nil {
+			fmt.Printf("Error recreating %s: %v\n", defaultLogDir, err)
+		}
+
+		// Clean up /etc/lumberjack/live
+		liveDir := filepath.Join(defaultProcDir, "live")
+		if err := os.RemoveAll(liveDir); err != nil {
+			fmt.Printf("Error cleaning up %s: %v\n", liveDir, err)
+		}
+		if err := os.MkdirAll(liveDir, 0755); err != nil {
+			fmt.Printf("Error recreating %s: %v\n", liveDir, err)
+		}
+
+		// Delete config file - ignore if it doesn't exist
+		configFile := filepath.Join(defaultProcDir, "config.yaml")
+		_ = os.Remove(configFile)
+
+		fmt.Println("All configurations and associated files deleted successfully")
+		return
+	}
+
+	// For single database deletion, we need the config file to exist
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(defaultProcDir)
 
 	if err := viper.ReadInConfig(); err != nil {
-		fmt.Printf("Error reading config: %v\n", err)
+		fmt.Printf("No configuration found: %v\n", err)
 		return
 	}
 
@@ -56,55 +102,15 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if !deleteAll {
-		dbName := args[0]
-		if _, exists := config.Databases[dbName]; !exists {
-			fmt.Printf("Database '%s' not found in configuration\n", dbName)
-			return
-		}
-
-		if !forceDelete {
-			fmt.Println("Warning: This action is irreversible and will delete the database and all associated logs.")
-			fmt.Printf("Are you sure you want to delete database '%s'? [y/N]: ", dbName)
-			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
-				fmt.Println("Operation cancelled")
-				return
-			}
-		}
-
-		// Delete database directory
-		dbPath := filepath.Join(defaultLibDir, dbName)
-		if err := os.RemoveAll(dbPath); err != nil {
-			fmt.Printf("Error deleting database files for %s: %v\n", dbName, err)
-		}
-
-		// Delete log directory
-		logPath := filepath.Join(defaultLogDir, dbName)
-		if err := os.RemoveAll(logPath); err != nil {
-			fmt.Printf("Error deleting logs for %s: %v\n", dbName, err)
-		}
-
-		// Delete .dat file
-		datFile := filepath.Join(defaultLibDir, dbName+".dat")
-		if err := os.Remove(datFile); err != nil && !os.IsNotExist(err) {
-			fmt.Printf("Error deleting database file for %s: %v\n", dbName, err)
-		}
-
-		delete(config.Databases, dbName)
-		if err := saveConfig(config); err != nil {
-			fmt.Printf("Error saving configuration: %v\n", err)
-			return
-		}
-		fmt.Printf("Database '%s' configuration and files deleted successfully\n", dbName)
+	dbName := args[0]
+	if _, exists := config.Databases[dbName]; !exists {
+		fmt.Printf("Database '%s' not found in configuration\n", dbName)
 		return
 	}
 
-	// Handle --all flag
 	if !forceDelete {
-		fmt.Println("Warning: This action is irreversible and will delete all databases and associated logs.")
-		fmt.Print("Are you sure you want to delete ALL configurations? [y/N]: ")
+		fmt.Println("Warning: This action is irreversible and will delete the database and all associated logs.")
+		fmt.Printf("Are you sure you want to delete database '%s'? [y/N]: ", dbName)
 		var response string
 		fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
@@ -113,38 +119,30 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Delete all database files and logs
-	for dbName := range config.Databases {
-		// Delete database directory
-		dbPath := filepath.Join(defaultLibDir, dbName)
-		if err := os.RemoveAll(dbPath); err != nil {
-			fmt.Printf("Error deleting database files for %s: %v\n", dbName, err)
-		}
-
-		// Delete log directory
-		logPath := filepath.Join(defaultLogDir, dbName)
-		if err := os.RemoveAll(logPath); err != nil {
-			fmt.Printf("Error deleting logs for %s: %v\n", dbName, err)
-		}
-
-		// Delete .dat file
-		datFile := filepath.Join(defaultLibDir, dbName+".dat")
-		if err := os.Remove(datFile); err != nil && !os.IsNotExist(err) {
-			fmt.Printf("Error deleting database file for %s: %v\n", dbName, err)
-		}
+	// Delete database directory
+	dbPath := filepath.Join(defaultLibDir, dbName)
+	if err := os.RemoveAll(dbPath); err != nil {
+		fmt.Printf("Error deleting database files for %s: %v\n", dbName, err)
 	}
 
-	configFile := filepath.Join(defaultProcDir, "config.yaml")
-	if err := os.Remove(configFile); err != nil {
-		if os.IsNotExist(err) {
-			fmt.Println("No configuration file found")
-			return
-		}
-		fmt.Printf("Error deleting config: %v\n", err)
+	// Delete log directory
+	logPath := filepath.Join(defaultLogDir, dbName)
+	if err := os.RemoveAll(logPath); err != nil {
+		fmt.Printf("Error deleting logs for %s: %v\n", dbName, err)
+	}
+
+	// Delete .dat file
+	datFile := filepath.Join(defaultLibDir, dbName+".dat")
+	if err := os.Remove(datFile); err != nil && !os.IsNotExist(err) {
+		fmt.Printf("Error deleting database file for %s: %v\n", dbName, err)
+	}
+
+	delete(config.Databases, dbName)
+	if err := saveConfig(config); err != nil {
+		fmt.Printf("Error saving configuration: %v\n", err)
 		return
 	}
-
-	fmt.Println("All configurations and associated files deleted successfully")
+	fmt.Printf("Database '%s' configuration and files deleted successfully\n", dbName)
 }
 
 func saveConfig(config types.Config) error {

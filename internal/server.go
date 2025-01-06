@@ -36,8 +36,13 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 		server.logger.Info("Creating new database")
 
 		adminUser := core.User{
+			ID:       core.GenerateID(),
 			Username: config.User.Username,
-			Password: hashPassword(config.User.Password),
+		}
+
+		if err := adminUser.SetPassword(config.User.Password); err != nil {
+			server.logger.Failure("failed to set admin password: %v", err)
+			return nil, err
 		}
 
 		if err := server.forest.AssignUser(adminUser, core.AdminPermission); err != nil {
@@ -48,33 +53,11 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 		if err := server.writeChangesToFile(server.forest, dbPath); err != nil {
 			server.logger.Failure("failed to save initial database state: %v", err)
 			return nil, err
-		} else {
-			server.logger.Info("Database created successfully")
 		}
 
-		// We exit early if we are simply creating a new database
-		return nil, nil
-	} else {
-		server.logger.Failure("failed to create database: %v", err)
-		return nil, err
+		server.logger.Info("Database created successfully with admin user: %s", adminUser.Username)
+		return server, nil
 	}
-
-	// Public routes
-	router.HandleFunc("/login", server.handleLogin).Methods("POST")
-	router.HandleFunc("/create_user", server.handleCreateUser).Methods("POST")
-
-	// Protected routes
-	router.HandleFunc("/end_event", server.authMiddleware(server.handleEndEvent)).Methods("POST")
-	router.HandleFunc("/append_event", server.authMiddleware(server.handleAppendToEvent)).Methods("POST")
-	router.HandleFunc("/start_event", server.authMiddleware(server.handleStartEvent)).Methods("POST")
-	router.HandleFunc("/get_event_entries", server.authMiddleware(server.handleGetEventEntries)).Methods("POST")
-	router.HandleFunc("/plan_event", server.authMiddleware(server.handlePlanEvent)).Methods("POST")
-	router.HandleFunc("/assign_user", server.authMiddleware(server.handleAssignUser)).Methods("POST")
-	router.HandleFunc("/start_time_tracking", server.authMiddleware(server.handleStartTimeTracking)).Methods("POST")
-	router.HandleFunc("/stop_time_tracking", server.authMiddleware(server.handleStopTimeTracking)).Methods("POST")
-	router.HandleFunc("/get_time_tracking", server.authMiddleware(server.handleGetTimeTracking)).Methods("GET")
-	router.HandleFunc("/get_tree", server.authMiddleware(server.handleGetTree)).Methods("GET")
-	router.HandleFunc("/get_users", server.authMiddleware(server.handleGetUsers)).Methods("GET")
 
 	return server, nil
 }

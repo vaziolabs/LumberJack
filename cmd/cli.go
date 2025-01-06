@@ -27,6 +27,7 @@ var (
 	dashboardSet bool
 	deleteAll    bool
 	forceDelete  bool
+	killAll      bool
 	rootCmd      = &cobra.Command{
 		Use:   "lumberjack",
 		Short: "LumberJack - Event tracking and management system",
@@ -93,10 +94,12 @@ Example:
 		Long: `Kill a running server by its ID.
 Use 'list running' to see available server IDs.
 Use -d flag to kill only the dashboard.
+Use --all to kill all running servers.
 
 Example:
     lumberjack kill abc123xyz
-    lumberjack kill abc123xyz -d`,
+    lumberjack kill abc123xyz -d
+    lumberjack kill --all`,
 		Run: killServer,
 	}
 	logsCmd = &cobra.Command{
@@ -144,12 +147,15 @@ func init() {
 	startCmd.Flags().StringVarP(&configFile, "config", "c", "", "Config file to use")
 
 	killCmd.Flags().BoolVarP(&dashboardSet, "dashboard", "d", false, "Kill only the dashboard")
+	killCmd.Flags().BoolVar(&killAll, "all", false, "Kill all running servers")
 
 	deleteCmd.Flags().BoolVar(&deleteAll, "all", false, "Delete all configurations")
 	deleteCmd.Flags().BoolVar(&forceDelete, "force", false, "Force delete without confirmation")
 
 	logsCmd.Flags().IntP("lines", "n", 0, "Number of lines to show from the end")
 	logsCmd.Flags().BoolP("follow", "f", false, "Follow log output")
+
+	rootCmd.Flags().BoolVarP(&dashboardSet, "dashboard", "d", false, "Start with dashboard")
 }
 
 var createCmd = &cobra.Command{
@@ -344,8 +350,8 @@ func createConfig(cmd *cobra.Command, args []string) {
 }
 
 func killServer(cmd *cobra.Command, args []string) {
-	if len(args) == 0 {
-		fmt.Println("Server ID required")
+	if !killAll && len(args) == 0 {
+		fmt.Println("Server name or ID required")
 		return
 	}
 
@@ -355,10 +361,31 @@ func killServer(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	if killAll {
+		if !forceDelete {
+			fmt.Println("Warning: This action will kill all running servers.")
+			fmt.Print("Are you sure you want to kill ALL servers? [y/N]: ")
+			var response string
+			fmt.Scanln(&response)
+			if response != "y" && response != "Y" {
+				fmt.Println("Operation cancelled")
+				return
+			}
+		}
+
+		for _, proc := range processes {
+			if err := killProcess(proc); err != nil {
+				fmt.Printf("Warning: Error killing process %s: %v\n", proc.ID, err)
+			}
+		}
+		fmt.Println("All servers killed successfully")
+		return
+	}
+
 	var proc types.ProcessInfo
 	found := false
 	for _, p := range processes {
-		if p.ID == args[0] {
+		if p.ID == args[0] || p.DBName == args[0] {
 			proc = p
 			found = true
 			break
@@ -370,35 +397,8 @@ func killServer(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if dashboardSet {
-		if !proc.DashboardUp {
-			fmt.Println("Dashboard is not running for this server")
-			return
-		}
-		// TODO: Implement dashboard process kill
-		// For now, just update the process info
-		proc.DashboardUp = false
-		if err := updateProcessInfo(proc); err != nil {
-			fmt.Printf("Error updating process info: %v\n", err)
-			return
-		}
-		fmt.Printf("Dashboard killed for server %s\n", args[0])
-		return
-	}
-
-	process, err := os.FindProcess(proc.PID)
-	if err != nil {
-		fmt.Printf("Error finding process: %v\n", err)
-		return
-	}
-
-	if err := process.Kill(); err != nil {
+	if err := killProcess(proc); err != nil {
 		fmt.Printf("Error killing process: %v\n", err)
-		return
-	}
-
-	if err := removeProcess(args[0]); err != nil {
-		fmt.Printf("Error removing process from tracking: %v\n", err)
 		return
 	}
 
@@ -612,6 +612,11 @@ func startServer(cmd *cobra.Command, args []string, user types.User) {
 	dbName := "default"
 	if len(args) > 0 {
 		dbName = args[0]
+	}
+
+	// Get dashboard flag from root command if not set
+	if !dashboardSet {
+		dashboardSet, _ = cmd.Flags().GetBool("dashboard")
 	}
 
 	config := loadConfig(dbName)

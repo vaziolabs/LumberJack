@@ -2,8 +2,6 @@ package internal
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,12 +9,6 @@ import (
 	"github.com/golang-jwt/jwt"
 	"github.com/vaziolabs/lumberjack/internal/core"
 )
-
-func hashPassword(password string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(password))
-	return hex.EncodeToString(hasher.Sum(nil))
-}
 
 // compares two byte slices for equality
 func compareHashes(a, b []byte) bool {

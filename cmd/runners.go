@@ -131,16 +131,46 @@ func getRunningServers() ([]types.ProcessInfo, error) {
 	return processes, nil
 }
 
+func killProcess(proc types.ProcessInfo) error {
+	processLock.Lock()
+	defer processLock.Unlock()
+
+	// Try to kill the process group instead of just the process
+	pgid, err := syscall.Getpgid(proc.PID)
+	if err == nil {
+		// Kill the entire process group
+		if err := syscall.Kill(-pgid, syscall.SIGKILL); err != nil {
+			// If process group kill fails, try killing individual process
+			process, err := os.FindProcess(proc.PID)
+			if err == nil {
+				_ = process.Kill() // Attempt to kill even if process.Kill returns error
+			}
+		}
+	}
+
+	// Clean up process files regardless of kill success
+	_ = os.Remove(getProcessFilePath(proc.ID))
+	_ = os.Remove(filepath.Join("/etc/lumberjack/live", proc.ID))
+
+	// Clean up any leftover port bindings
+	if proc.DashboardUp {
+		exec.Command("fuser", "-k", proc.DashboardPort+"/tcp").Run()
+	}
+	exec.Command("fuser", "-k", proc.APIPort+"/tcp").Run()
+
+	return nil
+}
+
 func removeProcess(id string) error {
 	processLock.Lock()
 	defer processLock.Unlock()
 
-	// Remove the .dat file
-	if err := os.Remove(getProcessFilePath(id)); err != nil {
-		return err
-	}
+	// Remove the .dat file - ignore errors
+	_ = os.Remove(getProcessFilePath(id))
 
-	// Remove the live process file
+	// Remove the live process file - ignore errors
 	liveFilePath := filepath.Join("/etc/lumberjack/live", id)
-	return os.Remove(liveFilePath)
+	_ = os.Remove(liveFilePath)
+
+	return nil
 }
