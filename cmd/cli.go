@@ -61,7 +61,51 @@ Flags:
 				}
 				createConfig(cmd, args)
 			} else {
-				startServer(cmd, args, user)
+				// Get target database name
+				dbName := "default"
+				if len(args) > 0 {
+					dbName = args[0]
+				}
+
+				processes, err := getRunningServers()
+				if err != nil {
+					fmt.Printf("Error getting running servers: %v\n", err)
+					os.Exit(1)
+				}
+
+				// Find the specific server by database name
+				var targetProcess *types.ProcessInfo
+				for _, p := range processes {
+					if p.DbName == dbName {
+						targetProcess = &p
+						break
+					}
+				}
+
+				if targetProcess != nil {
+					config := loadConfig(targetProcess.DbName)
+
+					// Server already running, just start dashboard if requested
+					if dashboardSet && !targetProcess.DashboardUp {
+						apiEndpoint := fmt.Sprintf("http://%s:%s", config.Domain, config.Port)
+						dash := dashboard.NewDashboard(apiEndpoint, config.DashboardPort)
+						if err := dash.Start(); err != nil {
+							fmt.Printf("Error starting dashboard: %v\n", err)
+							os.Exit(1)
+						}
+						targetProcess.DashboardUp = true
+						updateProcessInfo(*targetProcess)
+						fmt.Printf("%s LumberJack server running on http://%s:%s\n", dbName, config.Domain, config.Port)
+						fmt.Printf("%s LumberJack dashboard starting on http://%s:%s\n", dbName, config.Domain, config.DashboardPort)
+					} else {
+						fmt.Printf("%s LumberJack server running on http://%s:%s\n", dbName, config.Domain, config.Port)
+						if targetProcess.DashboardUp {
+							fmt.Printf("%s LumberJack dashboard running on http://%s:%s\n", dbName, config.Domain, config.DashboardPort)
+						}
+					}
+				} else {
+					startServer(cmd, args, user)
+				}
 			}
 		},
 	}
@@ -362,6 +406,10 @@ func killServer(cmd *cobra.Command, args []string) {
 	}
 
 	if killAll {
+		if len(processes) == 0 {
+			fmt.Println("No running servers found")
+			return
+		}
 		if !forceDelete {
 			fmt.Println("Warning: This action will kill all running servers.")
 			fmt.Print("Are you sure you want to kill ALL servers? [y/N]: ")

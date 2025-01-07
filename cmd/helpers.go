@@ -42,6 +42,22 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 	}
 
 	if deleteAll {
+		// Kill all running servers first
+		processes, err := getRunningServers()
+		if err != nil {
+			fmt.Printf("Error getting running servers: %v\n", err)
+			return
+		}
+
+		// Kill all running servers
+		for _, proc := range processes {
+			if err := killProcess(proc); err != nil {
+				fmt.Printf("Warning: Error killing process %s: %v\n", proc.ID, err)
+			} else {
+				fmt.Printf("Killing %s lumberjack server - process %s\n.", proc.DbName, proc.ID)
+			}
+		}
+
 		if !forceDelete {
 			fmt.Println("Warning: This action is irreversible and will delete all databases and associated logs.")
 			fmt.Print("Are you sure you want to delete ALL configurations? [y/N]: ")

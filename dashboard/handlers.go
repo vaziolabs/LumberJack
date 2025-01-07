@@ -130,28 +130,27 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.logger.Enter("Login")
 	defer s.logger.Exit("Login")
 
-	// Read the entire request body first
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		s.logger.Error("Error reading request body: %v", err)
+	var credentials struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
+		s.logger.Error("Error decoding login credentials: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Forward the raw request body to the API server
-	req, err := http.NewRequest("POST", s.apiEndpoint+"/login", bytes.NewBuffer(body))
+	// Create proper JSON payload
+	jsonData, err := json.Marshal(credentials)
 	if err != nil {
-		s.logger.Error("Error creating request: %v", err)
+		s.logger.Error("Error encoding login credentials: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Set content type header
-	req.Header.Set("Content-Type", "application/json")
-
-	// Make the request
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Make request to API server
+	resp, err := http.Post(s.apiEndpoint+"/login", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		s.logger.Error("Error making login request: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -159,36 +158,35 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	// Read response body
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		s.logger.Error("Error reading response body: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Error("Login request failed with status: %v", resp.StatusCode)
+		http.Error(w, string(body), resp.StatusCode)
 		return
 	}
 
-	// Set response status code
-	w.WriteHeader(resp.StatusCode)
-
-	// Write response body
-	w.Write(respBody)
-
-	if resp.StatusCode == http.StatusOK {
-		var loginResponse struct {
-			Token string `json:"token"`
-		}
-		if err := json.Unmarshal(respBody, &loginResponse); err != nil {
-			return
-		}
-
-		// Set the auth cookie on successful login
-		http.SetCookie(w, &http.Cookie{
-			Name:     "auth_token",
-			Value:    loginResponse.Token,
-			Path:     "/",
-			HttpOnly: true,
-		})
+	// Parse the API response
+	var loginResponse struct {
+		Token string `json:"token"`
 	}
+	if err := json.NewDecoder(resp.Body).Decode(&loginResponse); err != nil {
+		s.logger.Error("Invalid response from server: %v", err)
+		http.Error(w, "Invalid response from server", http.StatusInternalServerError)
+		return
+	}
+
+	// Set the auth cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    loginResponse.Token,
+		Path:     "/",
+		HttpOnly: true,
+	})
+
+	// Return success response
+	s.logger.Success("%s Login successful", credentials.Username)
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
 func (s *DashboardServer) authMiddleware(next http.Handler) http.Handler {

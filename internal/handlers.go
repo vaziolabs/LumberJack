@@ -424,15 +424,14 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Add debug logging
 	server.logger.Info("Attempting login for user: %s", credentials.Username)
 	server.logger.Info("Number of users in system: %d", len(server.forest.Users))
 
-	// Find user - using a pointer to avoid copying
+	// Get pointer to user to avoid copying
 	var foundUser *core.User
-	for _, user := range server.forest.Users {
-		if user.Username == credentials.Username {
-			foundUser = &user
+	for i := range server.forest.Users {
+		if server.forest.Users[i].Username == credentials.Username {
+			foundUser = &server.forest.Users[i]
 			break
 		}
 	}
@@ -463,6 +462,7 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"token": tokenString,
 	})

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 
 	"github.com/vaziolabs/lumberjack/internal/core"
@@ -14,50 +13,52 @@ import (
 
 // loadFromFile loads the forest data from the file.
 func (server *Server) loadFromFile(filename string) error {
-	// Here, load and verify the data, decompress, and unmarshal the forest data from the file
-	var loadedForest core.Node
-
-	err := server.readChangesFromFile(filename, &loadedForest)
-	if err != nil {
-		return fmt.Errorf("error loading forest from file: %v", err)
-	}
-
-	// Assign the loaded forest data to the app's forest
-	server.forest = &loadedForest
-	return nil
-}
-
-// LoadStateFromFile loads the forest state from a file
-func (server *Server) loadStateFromFile(filename string) error {
-	server.mutex.Lock()
-	defer server.mutex.Unlock()
+	server.logger.Enter("loadFromFile")
+	defer server.logger.Exit("loadFromFile")
 
 	file, err := os.Open(filename)
 	if err != nil {
-		return fmt.Errorf("failed to open state file: %v", err)
+		return err
 	}
 	defer file.Close()
 
-	// Create a new decoder for reading the JSON data
-	decoder := json.NewDecoder(file)
-
-	// Decode into the app's forest
-	if err := decoder.Decode(&server.forest); err != nil {
-		return fmt.Errorf("failed to decode state file: %v", err)
+	// Read hash first
+	hash := make([]byte, sha256.Size)
+	if _, err := file.Read(hash); err != nil {
+		return err
 	}
 
-	log.Println("Successfully loaded forest from file.")
+	// Read and decompress remaining data
+	data, err := server.loadCompressedData(file)
+	if err != nil {
+		return fmt.Errorf("error loading compressed data: %v", err)
+	}
+
+	// Create a new forest and unmarshal into it
+	var loadedForest core.Node
+	if err := server.validateAndUnmarshal(data, hash, &loadedForest); err != nil {
+		return fmt.Errorf("error validating data: %v", err)
+	}
+
+	// Important: Copy the loaded forest to server's forest
+	*server.forest = loadedForest
+	server.logger.Debug("Loaded forest: %+v", server.forest)
 	return nil
 }
 
 // TODO: Encrypt this
 // Function to write changes to an encrypted state file
 func (server *Server) writeChangesToFile(data interface{}, filename string) error {
+	server.logger.Enter("writeChangesToFile")
+	defer server.logger.Exit("writeChangesToFile")
+
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
-	jsonData, err := json.Marshal(data)
+	// Always save the entire forest state
+	jsonData, err := json.Marshal(server.forest)
 	if err != nil {
+		server.logger.Failure("Failed to marshal forest: %v", err)
 		return err
 	}
 
@@ -65,78 +66,80 @@ func (server *Server) writeChangesToFile(data interface{}, filename string) erro
 	hash.Write(jsonData)
 	newHash := hash.Sum(nil)
 
-	// Skip writing if data hasn't changed
 	if server.lastHash != nil && compareHashes(server.lastHash, newHash) {
+		server.logger.Debug("No changes to save")
 		return nil
 	}
 
-	file, err := os.Create(filename)
+	tmpFile := filename + ".tmp"
+	file, err := os.Create(tmpFile)
 	if err != nil {
+		server.logger.Failure("Failed to create temporary file: %v", err)
 		return err
 	}
 	defer file.Close()
 
-	_, err = file.Write(newHash)
-	if err != nil {
+	if _, err := file.Write(newHash); err != nil {
+		os.Remove(tmpFile)
+		server.logger.Failure("Failed to write hash to temporary file: %v", err)
 		return err
 	}
 
 	gzipWriter := gzip.NewWriter(file)
-	defer gzipWriter.Close()
+	if _, err := gzipWriter.Write(jsonData); err != nil {
+		os.Remove(tmpFile)
+		server.logger.Failure("Failed to write compressed data to temporary file: %v", err)
+		return err
+	}
+	if err := gzipWriter.Close(); err != nil {
+		os.Remove(tmpFile)
+		server.logger.Failure("Failed to close gzip writer: %v", err)
+		return err
+	}
 
-	_, err = gzipWriter.Write(jsonData)
-	if err != nil {
+	if err := os.Rename(tmpFile, filename); err != nil {
+		os.Remove(tmpFile)
+		server.logger.Failure("Failed to rename temporary file: %v", err)
 		return err
 	}
 
 	server.lastHash = newHash
+	server.logger.Debug("Saved changes to file: %s", filename)
 	return nil
 }
 
-// ReadChangesFromFile reads the hash and compressed data from the file, decompresses and validates it.
-func (server *Server) readChangesFromFile(filename string, data interface{}) error {
-	// Open the file
-	file, err := os.Open(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+// LoadCompressedData loads and validates gzipped JSON data from a reader
+func (server *Server) loadCompressedData(reader io.Reader) ([]byte, error) {
+	server.logger.Enter("loadCompressedData")
+	defer server.logger.Exit("loadCompressedData")
 
-	// Read the hash from the file header
-	hash := make([]byte, sha256.Size)
-	_, err = file.Read(hash)
+	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
-		return err
-	}
-
-	// Create a gzip reader to decompress the data
-	gzipReader, err := gzip.NewReader(file)
-	if err != nil {
-		return err
+		server.logger.Failure("Failed to create gzip reader: %v", err)
+		return nil, err
 	}
 	defer gzipReader.Close()
 
-	// Decompress the data
-	var decompressedData []byte
-	decompressedData, err = io.ReadAll(gzipReader)
-	if err != nil {
-		return err
-	}
+	return io.ReadAll(gzipReader)
+}
 
-	// Verify the hash
+func (server *Server) validateAndUnmarshal(data []byte, hash []byte, target interface{}) error {
+	server.logger.Enter("validateAndUnmarshal")
+	defer server.logger.Exit("validateAndUnmarshal")
+
 	dataHash := sha256.New()
-	dataHash.Write(decompressedData)
+	dataHash.Write(data)
 	if !compareHashes(hash, dataHash.Sum(nil)) {
+		server.logger.Failure("Data hash mismatch, file may be corrupted")
 		return fmt.Errorf("data hash mismatch, file may be corrupted")
 	}
 
-	// Unmarshal the decompressed data back into the provided data structure
-	err = json.Unmarshal(decompressedData, data)
-	if err != nil {
+	if err := json.Unmarshal(data, target); err != nil {
+		server.logger.Failure("Failed to unmarshal data: %v", err)
 		return err
 	}
 
 	server.lastHash = hash
-
+	server.logger.Debug("Unmarshalled data: %+v", target)
 	return nil
 }

@@ -55,8 +55,8 @@ To delete configuration:
     - [ ] Ensure logger is logging to the correct file
     - [X] Ensure the dat file is created and updated in the correct directory
     - [ ] Move cli types to top level
- - [ ] Add Core Logger
-    - [ ] Integrate debug logging into log file
+ - [X] Add Core Logger
+    - [X] Integrate debug logging into log file
  - [ ] Improve CLI
    - [X] Allow Multiple Databases and configs
    - [X] Add proper linux directory structure
@@ -71,6 +71,7 @@ To delete configuration:
  - [ ] Test Dashboard Data Display and Interaction
     - [ ] Add Dashboard Login
     - [ ] Add API Event Logging
+    - [ ] Integrate Node Specific User Access
  - [ ] Create Typescript module for direct API integration
  - [ ] Add TLS
  - [ ] Improve Session Based Authentication

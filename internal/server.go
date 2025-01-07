@@ -33,7 +33,7 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 
 	// Load existing database if it exists
 	dbPath := filepath.Join(config.DbPath, config.DbName+".dat")
-	if err := server.readChangesFromFile(dbPath, server.forest); err == nil {
+	if err := server.loadFromFile(dbPath); err == nil {
 		server.logger.Info("Loaded existing database from %s", dbPath)
 	} else if config.User.Username != "" && config.User.Password != "" {
 		server.logger.Info("Creating new database")
@@ -41,6 +41,7 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 		adminUser := core.User{
 			ID:       core.GenerateID(),
 			Username: config.User.Username,
+			Email:    config.User.Email,
 		}
 
 		server.logger.Info("Creating admin user with username: %s", config.User.Username)
@@ -49,6 +50,7 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 			server.logger.Failure("failed to set admin password: %v", err)
 			return nil, err
 		}
+		server.logger.Debug("Admin user: %+v", adminUser)
 
 		server.logger.Info("Admin password set successfully")
 
@@ -58,12 +60,11 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 		}
 
 		if err := server.writeChangesToFile(server.forest, dbPath); err != nil {
-			server.logger.Failure("failed to save initial database state: %v", err)
+			server.logger.Failure("failed to save state after user creation: %v", err)
 			return nil, err
 		}
 
 		server.logger.Info("Database created successfully with admin user: %s", adminUser.Username)
-		return server, nil
 	} else {
 		server.logger.Failure("failed to create database: %v", err)
 		return nil, err
