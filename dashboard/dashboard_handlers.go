@@ -15,7 +15,7 @@ func (s *DashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request
 }
 
 func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) {
-	req, _ := http.NewRequest("GET", s.apiEndpoint+"/get_tree", nil)
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/forest/tree", nil)
 	req.Header.Set("Authorization", r.Header.Get("Authorization"))
 
 	client := &http.Client{}
@@ -47,7 +47,7 @@ func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *DashboardServer) handleGetEvents(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get(s.apiEndpoint + "/get_event_entries/")
+	resp, err := http.Get(s.apiEndpoint + "/events")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -81,7 +81,7 @@ func (s *DashboardServer) handleGetUsers(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Make request to API server with auth token
-	req, _ := http.NewRequest("GET", s.apiEndpoint+"/get_users", nil)
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/users", nil)
 	req.Header.Set("Authorization", "Bearer "+cookie.Value)
 
 	client := &http.Client{}
@@ -118,7 +118,7 @@ func (s *DashboardServer) handleCreateUser(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	resp, err := http.Post(s.apiEndpoint+"/create_user", "application/json",
+	resp, err := http.Post(s.apiEndpoint+"/users/create", "application/json",
 		bytes.NewBuffer(body))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -214,7 +214,7 @@ func (s *DashboardServer) authMiddleware(next http.Handler) http.Handler {
 
 func (s *DashboardServer) handleGetUserProfile(w http.ResponseWriter, r *http.Request) {
 	// Forward request to API server
-	req, _ := http.NewRequest("GET", s.apiEndpoint+"/user/profile", nil)
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/users/profile", nil)
 	req.Header.Set("Authorization", r.Header.Get("Authorization"))
 
 	client := &http.Client{}
@@ -243,7 +243,7 @@ func (s *DashboardServer) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (s *DashboardServer) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	// Forward settings update to API server
-	req, _ := http.NewRequest("POST", s.apiEndpoint+"/settings", r.Body)
+	req, _ := http.NewRequest("POST", s.apiEndpoint+"/settings/update", r.Body)
 	req.Header.Set("Authorization", r.Header.Get("Authorization"))
 	req.Header.Set("Content-Type", "application/json")
 

@@ -51,10 +51,10 @@ To delete configuration:
     - [ ] Fix Testing Logging and Scoping to create Run directives
     - [ ] Remove redundant tests
     - [ ] Finish incomplete tests
- - [ ] Refactor CLI types to work with the Core for directory structure
-    - [ ] Ensure logger is logging to the correct file
+ - [X] Refactor CLI types to work with the Core for directory structure
+    - [X] Ensure logger is logging to the correct file
     - [X] Ensure the dat file is created and updated in the correct directory
-    - [ ] Move cli types to top level
+    - [X] Move cli types to top level
  - [X] Add Core Logger
     - [X] Integrate debug logging into log file
  - [ ] Improve CLI
@@ -63,20 +63,25 @@ To delete configuration:
    - [ ] Ensure delete commands require admin confirmation
    - [X] Update `list` command to use the proper ID
    - [X] Fix `delete` command to not delete all databases
-   - [ ] Test ALL commands
+   - [X] Test ALL commands
    - [ ] Test all Help commands
    - [X] have CLI daemonize API and Dashboard
    - [X] Remove Admin from Config
    - [ ] Add Windows Support
  - [ ] Test Dashboard Data Display and Interaction
-    - [ ] Add Dashboard Login
+    - [ ] Improve Top Bar integration
+    - [ ] Add User Profile and Server Settings (if permissioned)
+    - [X] Add Dashboard Login
     - [ ] Add API Event Logging
-    - [ ] Integrate Node Specific User Access
+    - [ ] Add Node Level User Access Scoping
+    - [ ] LogOut
+    - [ ] MFA
+    - [ ] Third Party Integration (Slack, Google Calendar, etc.)
  - [ ] Create Typescript module for direct API integration
  - [ ] Add TLS
- - [ ] Improve Session Based Authentication
+ - [ ] Improve Session Authentication for Database & Dashboard
     - [X] Add JWT
-    - [ ] Allow for Certificate Authentication
+    - [ ] Integrate for Certificate Authentication
     - [ ] Add Session Expiration
     - [ ] Add Session Refresh
   - [ ] Refactor
@@ -110,32 +115,40 @@ Timestamped records within an event.
 
 ## API Endpoints
 
+### Authentication
+
+#### Login
+```bash
+curl -X POST http://localhost:8080/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "admin",
+    "password": "password"
+  }'
+```
+
 ### Node Management
 
-#### Create Node
+#### Get Forest
 ```bash
-curl -X POST http://localhost:8080/create_node \
-  -H "Content-Type: application/json" \
-  -H "X-User-ID: admin" \
-  -d '{
-    "path": "work/projects",
-    "name": "project-alpha",
-    "type": "leaf"
-  }'
+curl -X GET http://localhost:8080/forest \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Get Tree
+```bash
+curl -X GET http://localhost:8080/forest/tree \
+  -H "Authorization: Bearer <token>"
 ```
 
 #### Assign User
 ```bash
-curl -X POST http://localhost:8080/assign_user \
+curl -X POST http://localhost:8080/users/assign \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: admin" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "path": "work/projects/project-alpha",
-    "user": {
-      "id": "user123",
-      "username": "john_doe",
-      "permissions": ["read", "write"]
-    },
+    "assignee_id": "user123",
     "permission": "write"
   }'
 ```
@@ -144,60 +157,55 @@ curl -X POST http://localhost:8080/assign_user \
 
 #### Start Event
 ```bash
-curl -X POST http://localhost:8080/start_event \
+curl -X POST http://localhost:8080/events/start \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "path": "work/projects/project-alpha",
     "event_id": "sprint-1",
     "metadata": {
       "type": "sprint",
-      "duration": "2 weeks",
-      "team": "alpha"
+      "duration": "2 weeks"
     }
   }'
 ```
 
 #### Plan Event
 ```bash
-curl -X POST http://localhost:8080/plan_event/ \
+curl -X POST http://localhost:8080/events/plan \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "path": "work/projects/project-alpha",
     "event_id": "sprint-2",
     "start_time": "2024-01-15T09:00:00Z",
     "end_time": "2024-01-29T17:00:00Z",
     "metadata": {
-      "type": "sprint",
-      "frequency": "bi-weekly",
-      "custom_pattern": "0900",
-      "category": "work::projects::sprints"
+      "type": "sprint"
     }
   }'
 ```
 
 #### Append to Event
 ```bash
-curl -X POST http://localhost:8080/append_event/ \
+curl -X POST http://localhost:8080/events/append \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "path": "work/projects/project-alpha",
     "event_id": "sprint-1",
     "content": "Completed user authentication feature",
     "metadata": {
-      "type": "milestone",
-      "story_points": 5
+      "type": "milestone"
     }
   }'
 ```
 
 #### End Event
 ```bash
-curl -X POST http://localhost:8080/end_event \
+curl -X POST http://localhost:8080/events/end \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "path": "work/projects/project-alpha",
     "event_id": "sprint-1"
@@ -208,58 +216,76 @@ curl -X POST http://localhost:8080/end_event \
 
 #### Start Time Tracking
 ```bash
-curl -X POST http://localhost:8080/start_time_tracking/ \
+curl -X POST http://localhost:8080/time/start \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
-    "path": "work/projects/project-alpha",
-    "event_id": "sprint-1"
+    "path": "work/projects/project-alpha"
   }'
 ```
 
 #### Stop Time Tracking
 ```bash
-curl -X POST http://localhost:8080/stop_time_tracking/ \
+curl -X POST http://localhost:8080/time/stop \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
-    "path": "work/projects/project-alpha",
-    "event_id": "sprint-1"
+    "path": "work/projects/project-alpha"
   }'
 ```
 
-#### Get Time Tracking Summary
+#### Get Time Tracking
 ```bash
-curl -X GET http://localhost:8080/get_time_tracking/ \
+curl -X GET http://localhost:8080/time \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
-    "path": "work/projects/project-alpha",
-    "event_id": "sprint-1"
+    "path": "work/projects/project-alpha"
   }'
 ```
 
-### Queries
+### User Management
 
-#### Get Event Entries
+#### Create User
 ```bash
-curl -X POST http://localhost:8080/get_event_entries \
+curl -X POST http://localhost:8080/users/create \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
   -d '{
-    "path": "work/projects/project-alpha",
-    "event_id": "sprint-1"
+    "username": "john_doe",
+    "email": "john@example.com",
+    "password": "secure_password"
   }'
 ```
 
-#### Get Event Summary
+#### Get Users
 ```bash
-curl -X GET http://localhost:8080/get_event_summary/ \
+curl -X GET http://localhost:8080/users \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Get User Profile
+```bash
+curl -X GET http://localhost:8080/users/profile \
+  -H "Authorization: Bearer <token>"
+```
+
+### Settings
+
+#### Get Server Settings
+```bash
+curl -X GET http://localhost:8080/settings/ \
+  -H "Authorization: Bearer <token>"
+```
+
+#### Update Server Settings
+```bash
+curl -X POST http://localhost:8080/settings/update \
   -H "Content-Type: application/json" \
-  -H "X-User-ID: user123" \
+  -H "Authorization: Bearer <token>" \
   -d '{
-    "path": "work/projects/project-alpha",
-    "event_id": "sprint-1"
+    "organization": "MyOrg",
+    "server_port": "8080",
+    "dashboard_url": "http://localhost:3000"
   }'
 ```
 
