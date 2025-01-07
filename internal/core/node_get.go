@@ -125,3 +125,23 @@ func (n *Node) GetTimeTrackingSummary(userID string) []map[string]interface{} {
 
 	return summary
 }
+
+// GetUserProfile returns the user profile
+func (n *Node) GetUserProfile(userID string) (*User, error) {
+	n.mutex.RLock()
+	defer n.mutex.RUnlock()
+
+	var user *User
+
+	for _, u := range n.Users {
+		if u.ID == userID {
+			user = &u
+			break
+		}
+	}
+
+	if user == nil {
+		return nil, fmt.Errorf("user not found: %s", userID)
+	}
+	return user, nil
+}

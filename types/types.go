@@ -22,15 +22,21 @@ type DBConfig struct {
 }
 
 type User struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Email    string `json:"email"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	Organization string `json:"organization"`
 }
 
 type ServerConfig struct {
-	Port    string `json:"port"`
-	DbName  string `json:"db_name"`
-	LogPath string `json:"log_path"`
-	DbPath  string `json:"db_path"`
-	User    User   `json:"user"`
+	DatabaseName  string `json:"database_name"`
+	DatabasePath  string `json:"database_path"`
+	LogDirectory  string `json:"log_directory"`
+	Organization  string `json:"organization"`
+	ServerURL     string `json:"server_url"`
+	ServerPort    string `json:"server_port"`
+	DashboardURL  string `json:"dashboard_url,omitempty"`
+	DashboardPort string `json:"dashboard_port"`
+	Phone         string `json:"phone,omitempty"`
 }

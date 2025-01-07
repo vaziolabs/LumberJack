@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/spf13/viper"
 	"github.com/vaziolabs/lumberjack/internal/core"
+	"github.com/vaziolabs/lumberjack/types"
 )
 
 // compares two byte slices for equality
@@ -83,4 +85,47 @@ func (server *Server) getNodeFromPath(path string) (*core.Node, error) {
 	}
 
 	return current, nil
+}
+
+// UpdateSettings updates server configuration parameters
+func (server *Server) UpdateSettings(userID string, settings types.ServerConfig) error {
+	// Update user-specific settings
+	for i := range server.forest.Users {
+		if server.forest.Users[i].ID == userID {
+			server.forest.Users[i].Organization = settings.Organization
+			break
+		}
+	}
+
+	// Update server settings if values are provided
+	if settings.ServerPort != "" {
+		server.config.ServerPort = settings.ServerPort
+	}
+	if settings.DashboardPort != "" {
+		server.config.DashboardPort = settings.DashboardPort
+	}
+	if settings.ServerURL != "" {
+		server.config.ServerURL = settings.ServerURL
+	}
+	if settings.DatabasePath != "" {
+		server.config.DatabasePath = settings.DatabasePath
+	}
+	if settings.LogDirectory != "" {
+		server.config.LogDirectory = settings.LogDirectory
+	}
+	if settings.Organization != "" {
+		server.config.Organization = settings.Organization
+	}
+	if settings.Phone != "" {
+		server.config.Phone = settings.Phone
+	}
+
+	// Save updated configuration
+	return server.saveConfig()
+}
+
+// saveConfig writes the current configuration to disk
+func (server *Server) saveConfig() error {
+	viper.Set("databases."+server.config.DatabaseName, server.config)
+	return viper.WriteConfig()
 }

@@ -43,6 +43,9 @@ func NewDashboard(apiEndpoint string, port string) *DashboardServer {
 	protected.HandleFunc("/logs", dashboardServer.handleGetLogs).Methods("GET")
 	protected.HandleFunc("/users", dashboardServer.handleGetUsers).Methods("GET")
 	protected.HandleFunc("/users", dashboardServer.handleCreateUser).Methods("POST")
+	protected.HandleFunc("/user/profile", dashboardServer.handleGetUserProfile).Methods("GET")
+	protected.HandleFunc("/logout", dashboardServer.handleLogout).Methods("POST")
+	protected.HandleFunc("/settings", dashboardServer.handleUpdateSettings).Methods("POST")
 
 	// Main dashboard routes
 	router.HandleFunc("/", dashboardServer.handleLoginPage).Methods("GET")

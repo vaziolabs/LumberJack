@@ -12,7 +12,7 @@ import (
 	"github.com/vaziolabs/lumberjack/types"
 )
 
-func NewServer(config types.ServerConfig) (*Server, error) {
+func NewServer(config types.ServerConfig, adminUser types.User) (*Server, error) {
 	router := mux.NewRouter()
 
 	server := &Server{
@@ -23,53 +23,70 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 		},
 		logger: types.NewLogger(),
 		server: &http.Server{
-			Addr:    ":" + config.Port,
+			Addr:    ":" + config.ServerPort,
 			Handler: router,
 		},
+		config: config,
 	}
 
 	server.logger.Enter("NewServer")
 	defer server.logger.Exit("NewServer")
 
-	// Load existing database if it exists
-	dbPath := filepath.Join(config.DbPath, config.DbName+".dat")
-	if err := server.loadFromFile(dbPath); err == nil {
-		server.logger.Info("Loaded existing database from %s", dbPath)
-	} else if config.User.Username != "" && config.User.Password != "" {
-		server.logger.Info("Creating new database")
+	// Create admin user for new database
+	coreUser := core.User{
+		ID:           core.GenerateID(),
+		Username:     adminUser.Username,
+		Email:        adminUser.Email,
+		Organization: adminUser.Organization,
+		Phone:        adminUser.Phone,
+	}
 
-		adminUser := core.User{
-			ID:       core.GenerateID(),
-			Username: config.User.Username,
-			Email:    config.User.Email,
-		}
-
-		server.logger.Info("Creating admin user with username: %s", config.User.Username)
-
-		if err := adminUser.SetPassword(config.User.Password); err != nil {
-			server.logger.Failure("failed to set admin password: %v", err)
-			return nil, err
-		}
-		server.logger.Debug("Admin user: %+v", adminUser)
-
-		server.logger.Info("Admin password set successfully")
-
-		if err := server.forest.AssignUser(adminUser, core.AdminPermission); err != nil {
-			server.logger.Failure("failed to save admin user: %v", err)
-			return nil, err
-		}
-
-		if err := server.writeChangesToFile(server.forest, dbPath); err != nil {
-			server.logger.Failure("failed to save state after user creation: %v", err)
-			return nil, err
-		}
-
-		server.logger.Info("Database created successfully with admin user: %s", adminUser.Username)
-	} else {
-		server.logger.Failure("failed to create database: %v", err)
+	if err := coreUser.SetPassword(adminUser.Password); err != nil {
+		server.logger.Failure("failed to set admin password: %v", err)
 		return nil, err
 	}
 
+	if err := server.forest.AssignUser(coreUser, core.AdminPermission); err != nil {
+		server.logger.Failure("failed to save admin user: %v", err)
+		return nil, err
+	}
+
+	dbPath := filepath.Join(config.DatabasePath, config.DatabaseName+".dat")
+	if err := server.writeChangesToFile(server.forest, dbPath); err != nil {
+		server.logger.Failure("failed to save state after user creation: %v", err)
+		return nil, err
+	}
+
+	return server, nil
+}
+
+func LoadServer(config types.ServerConfig) (*Server, error) {
+	router := mux.NewRouter()
+
+	server := &Server{
+		forest: core.NewForest("forest"),
+		jwtConfig: JWTConfig{
+			SecretKey: []byte("your-secret-key"), // TODO: Determine on how to handle key securely
+			ExpiresIn: 24 * time.Hour,
+		},
+		logger: types.NewLogger(),
+		server: &http.Server{
+			Addr:    ":" + config.ServerPort,
+			Handler: router,
+		},
+		config: config,
+	}
+
+	server.logger.Enter("LoadServer")
+	defer server.logger.Exit("LoadServer")
+
+	dbPath := filepath.Join(config.DatabasePath, config.DatabaseName+".dat")
+	if err := server.loadFromFile(dbPath); err != nil {
+		server.logger.Failure("failed to load database: %v", err)
+		return nil, err
+	}
+
+	server.logger.Info("Loaded existing database from %s", dbPath)
 	return server, nil
 }
 
@@ -82,19 +99,23 @@ func (s *Server) Start() error {
 
 	// Public routes
 	router.HandleFunc("/login", s.handleLogin).Methods("POST")
-	router.HandleFunc("/create_user", s.handleCreateUser).Methods("POST")
+	router.HandleFunc("/users/create", s.handleCreateUser).Methods("POST")
 	// Protected routes
-	router.HandleFunc("/end_event", s.authMiddleware(s.handleEndEvent)).Methods("POST")
-	router.HandleFunc("/append_event", s.authMiddleware(s.handleAppendToEvent)).Methods("POST")
-	router.HandleFunc("/start_event", s.authMiddleware(s.handleStartEvent)).Methods("POST")
-	router.HandleFunc("/get_event_entries", s.authMiddleware(s.handleGetEventEntries)).Methods("POST")
-	router.HandleFunc("/plan_event", s.authMiddleware(s.handlePlanEvent)).Methods("POST")
-	router.HandleFunc("/assign_user", s.authMiddleware(s.handleAssignUser)).Methods("POST")
-	router.HandleFunc("/start_time_tracking", s.authMiddleware(s.handleStartTimeTracking)).Methods("POST")
-	router.HandleFunc("/stop_time_tracking", s.authMiddleware(s.handleStopTimeTracking)).Methods("POST")
-	router.HandleFunc("/get_time_tracking", s.authMiddleware(s.handleGetTimeTracking)).Methods("GET")
-	router.HandleFunc("/get_tree", s.authMiddleware(s.handleGetTree)).Methods("GET")
-	router.HandleFunc("/get_users", s.authMiddleware(s.handleGetUsers)).Methods("GET")
+	router.HandleFunc("/time", s.authMiddleware(s.handleGetTimeTracking)).Methods("GET")
+	router.HandleFunc("/time/start", s.authMiddleware(s.handleStartTimeTracking)).Methods("POST")
+	router.HandleFunc("/time/stop", s.authMiddleware(s.handleStopTimeTracking)).Methods("POST")
+	router.HandleFunc("/events", s.authMiddleware(s.handleGetEventEntries)).Methods("POST")
+	router.HandleFunc("/events/plan", s.authMiddleware(s.handlePlanEvent)).Methods("POST")
+	router.HandleFunc("/events/start", s.authMiddleware(s.handleStartEvent)).Methods("POST")
+	router.HandleFunc("/events/append", s.authMiddleware(s.handleAppendToEvent)).Methods("POST")
+	router.HandleFunc("/events/end", s.authMiddleware(s.handleEndEvent)).Methods("POST")
+	router.HandleFunc("/forest", s.authMiddleware(s.handleGetForest)).Methods("GET")
+	router.HandleFunc("/forest/tree", s.authMiddleware(s.handleGetTree)).Methods("GET")
+	router.HandleFunc("/users", s.authMiddleware(s.handleGetUsers)).Methods("GET")
+	router.HandleFunc("/users/assign", s.authMiddleware(s.handleAssignUser)).Methods("POST")
+	router.HandleFunc("/users/profile", s.authMiddleware(s.handleGetUserProfile)).Methods("GET")
+	router.HandleFunc("/settings/", s.authMiddleware(s.handleGetServerSettings)).Methods("GET")
+	router.HandleFunc("/settings/update", s.authMiddleware(s.handleUpdateServerSettings)).Methods("POST")
 
 	s.server.Handler = router
 	go func() {

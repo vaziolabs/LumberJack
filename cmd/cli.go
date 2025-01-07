@@ -259,13 +259,11 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	config := loadConfig(dbName)
 	serverConfig := types.ServerConfig{
-		Port:    config.Port,
-		DbName:  dbName,
-		LogPath: defaultLogDir,
-		DbPath:  defaultLibDir,
+		ServerPort:   config.Port,
+		DatabaseName: dbName,
 	}
 
-	server, err := internal.NewServer(serverConfig)
+	server, err := internal.LoadServer(serverConfig)
 	if err != nil {
 		fmt.Printf("Error creating server: %v\n", err)
 		os.Exit(1)
@@ -299,8 +297,11 @@ func createConfig(cmd *cobra.Command, args []string) {
 	}
 
 	user := types.User{
-		Username: "admin",
-		Password: "admin",
+		Username:     "admin",
+		Password:     "admin",
+		Organization: "LumberJack",
+		Phone:        "1234567890",
+		Email:        "admin@lumberjack.com",
 	}
 
 	defaultDbName := "default"
@@ -314,15 +315,18 @@ func createConfig(cmd *cobra.Command, args []string) {
 		default_ string
 	}{
 		{"LumberJack Database Name", &dbConfig.DbName, defaultDbName},
-		{"LumberJack Host Domain", &dbConfig.Domain, "localhost"},
-		{"LumberJack API Port", &dbConfig.Port, "8080"},
-		{"LumberJack Dashboard Port", &dbConfig.DashboardPort, "8081"},
+		{"Organization", &user.Organization, "LumberJack"},
+		{"Email (optional):", &user.Email, ""},
+		{"Phone Number (optional):", &user.Phone, ""},
 		{"Admin Username", &user.Username, user.Username},
 		{"Admin Password", &user.Password, user.Password},
 		{"Re-enter Admin Password", &user.Password, user.Password},
+		{"LumberJack Host Domain", &dbConfig.Domain, "localhost"},
+		{"LumberJack API Port", &dbConfig.Port, "8080"},
+		{"LumberJack Dashboard Port", &dbConfig.DashboardPort, "8081"},
 	}
 
-	for _, p := range prompts {
+	for i, p := range prompts {
 		prompt := promptui.Prompt{
 			Label:   p.label,
 			Default: p.default_,
@@ -335,13 +339,15 @@ func createConfig(cmd *cobra.Command, args []string) {
 			fmt.Printf("Prompt failed: %v\n", err)
 			os.Exit(1)
 		}
-		*p.field = result
-	}
 
-	// Check for matching passwords
-	if prompts[5].default_ != prompts[6].default_ {
-		fmt.Println("Passwords do not match")
-		os.Exit(1)
+		if i == 6 {
+			if result != prompts[5].default_ {
+				fmt.Println("Passwords do not match")
+				os.Exit(1)
+			}
+		}
+
+		*p.field = result
 	}
 
 	if user.Password != prompts[5].default_ {
@@ -378,15 +384,19 @@ func createConfig(cmd *cobra.Command, args []string) {
 
 	// Create initial server to save admin info
 	serverConfig := types.ServerConfig{
-		Port:    dbConfig.Port,
-		DbName:  dbName,
-		LogPath: defaultLogDir,
-		DbPath:  defaultLibDir,
-		User:    user,
+		DatabaseName:  dbName,
+		ServerURL:     fmt.Sprintf("http://%s:%s", dbConfig.Domain),
+		ServerPort:    dbConfig.Port,
+		Organization:  user.Organization,
+		DashboardURL:  fmt.Sprintf("http://%s:%s", dbConfig.Domain, dbConfig.DashboardPort),
+		DashboardPort: dbConfig.DashboardPort,
+		LogDirectory:  defaultLogDir,
+		DatabasePath:  defaultLibDir,
+		Phone:         user.Phone,
 	}
 
 	// Initialize server just to save admin info
-	_, err := internal.NewServer(serverConfig)
+	_, err := internal.NewServer(serverConfig, user)
 	if err != nil {
 		fmt.Printf("Error creating server: %v\n", err)
 		os.Exit(1)

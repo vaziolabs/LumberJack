@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/vaziolabs/lumberjack/internal/core"
+	"github.com/vaziolabs/lumberjack/types"
 
 	"github.com/golang-jwt/jwt"
 )
@@ -309,7 +310,7 @@ func (server *Server) handleGetEventEntries(w http.ResponseWriter, r *http.Reque
 }
 
 // HTTP handler for getting tree
-func (server *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGetForest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(server.forest)
 }
@@ -467,4 +468,121 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		"token": tokenString,
 	})
 	server.logger.Success("Login successful for user %s", foundUser.Username)
+}
+
+func (server *Server) handleGetUserProfile(w http.ResponseWriter, r *http.Request) {
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		http.Error(w, "User ID required", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := server.forest.GetUserProfile(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"username":     user.Username,
+		"email":        user.Email,
+		"organization": user.Organization,
+		"phone":        user.Phone,
+		"permissions":  user.Permissions,
+	})
+}
+
+// UpdateSettings updates server configuration parameters
+func (server *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var settings types.ServerConfig
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context
+	userID := r.Context().Value("user_id").(string)
+
+	// Update server configuration
+	if err := server.UpdateSettings(userID, settings); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// HTTP handler for getting a specific tree
+func (server *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "Path parameter required", http.StatusBadRequest)
+		return
+	}
+
+	node, err := server.forest.GetNode(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(node)
+}
+
+// HTTP handler for getting server settings
+func (server *Server) handleGetServerSettings(w http.ResponseWriter, r *http.Request) {
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		http.Error(w, "User ID required", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user has admin permission on root node
+	if !server.forest.CheckPermission(userID, core.AdminPermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	// Return safe subset of server settings
+	settings := map[string]interface{}{
+		"organization":  server.config.Organization,
+		"server_port":   server.config.ServerPort,
+		"dashboard_url": server.config.DashboardURL,
+		"phone":         server.config.Phone,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(settings)
+}
+
+// HTTP handler for updating server settings
+func (server *Server) handleUpdateServerSettings(w http.ResponseWriter, r *http.Request) {
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		http.Error(w, "User ID required", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user has admin permission on root node
+	if !server.forest.CheckPermission(userID, core.AdminPermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	var settings types.ServerConfig
+	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Update only safe settings
+	server.config.Organization = settings.Organization
+	server.config.DashboardURL = settings.DashboardURL
+	server.config.Phone = settings.Phone
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }

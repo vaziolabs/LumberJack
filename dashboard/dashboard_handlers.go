@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"time"
 )
 
 func (s *DashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -209,4 +210,51 @@ func (s *DashboardServer) authMiddleware(next http.Handler) http.Handler {
 		r.Header.Set("Authorization", "Bearer "+cookie.Value)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *DashboardServer) handleGetUserProfile(w http.ResponseWriter, r *http.Request) {
+	// Forward request to API server
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/user/profile", nil)
+	req.Header.Set("Authorization", r.Header.Get("Authorization"))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Error connecting to API server: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.Header().Set("Content-Type", "application/json")
+	io.Copy(w, resp.Body)
+}
+
+func (s *DashboardServer) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// Clear the auth cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Now().Add(-24 * time.Hour),
+		HttpOnly: true,
+	})
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *DashboardServer) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
+	// Forward settings update to API server
+	req, _ := http.NewRequest("POST", s.apiEndpoint+"/settings", r.Body)
+	req.Header.Set("Authorization", r.Header.Get("Authorization"))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Error connecting to API server: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }

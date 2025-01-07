@@ -251,10 +251,10 @@ document.addEventListener('DOMContentLoaded', checkAuthAndLoadData);
 document.addEventListener('DOMContentLoaded', () => {
     const userProfile = document.getElementById('user-profile');
     const profileMenu = document.getElementById('profile-menu');
-    const userInitials = document.getElementById('user-initials');
-    const usernameDisplay = document.getElementById('username-display');
+    const serverSettings = document.getElementById('server-settings');
+    const logoutButton = document.getElementById('logout');
 
-    // Toggle menu on click
+    // Toggle menu on profile click
     userProfile.addEventListener('click', (e) => {
         e.stopPropagation();
         profileMenu.classList.toggle('active');
@@ -265,15 +265,135 @@ document.addEventListener('DOMContentLoaded', () => {
         profileMenu.classList.remove('active');
     });
 
-    // Handle logout
-    document.getElementById('logout').addEventListener('click', async (e) => {
+    // Server Settings handler
+    serverSettings.addEventListener('click', async (e) => {
         e.preventDefault();
-        document.cookie = 'auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-        window.location.href = '/';
+        // TODO: Implement server settings modal
+        showServerSettingsModal();
     });
 
-    // Update profile display with user info
-    function updateUserProfile(username) {
+    // Logout handler
+    logoutButton.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('/api/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${getCookie('auth_token')}`
+                }
+            });
+            
+            // Clear auth token regardless of response
+            document.cookie = 'auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+            window.location.href = '/';
+            
+        } catch (error) {
+            console.error('Error during logout:', error);
+            // Force redirect to login page even if logout fails
+            window.location.href = '/';
+        }
+    });
+
+    // Load user profile on page load
+    loadUserProfile();
+});
+
+// Add Server Settings Modal functionality
+function showServerSettingsModal() {
+    const modalHtml = `
+        <div id="server-settings-modal" class="modal">
+            <div class="modal-content">
+                <h3>Server Settings</h3>
+                <form id="server-settings-form">
+                    <div class="form-group">
+                        <label for="api-endpoint">API Endpoint</label>
+                        <input type="text" id="api-endpoint" value="${window.location.origin}/api" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="log-level">Default Log Level</label>
+                        <select id="log-level">
+                            <option value="debug">Debug</option>
+                            <option value="info">Info</option>
+                            <option value="warn">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn">Save</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeServerSettingsModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = document.getElementById('server-settings-modal');
+    modal.style.display = 'block';
+
+    // Add form submit handler
+    document.getElementById('server-settings-form').addEventListener('submit', handleServerSettingsSave);
+}
+
+function closeServerSettingsModal() {
+    const modal = document.getElementById('server-settings-modal');
+    modal.remove();
+}
+
+async function handleServerSettingsSave(e) {
+    e.preventDefault();
+    try {
+        const settings = {
+            logLevel: document.getElementById('log-level').value
+        };
+
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getCookie('auth_token')}`
+            },
+            body: JSON.stringify(settings)
+        });
+
+        if (response.ok) {
+            closeServerSettingsModal();
+        } else {
+            console.error('Failed to save settings:', await response.text());
+        }
+    } catch (error) {
+        console.error('Error saving settings:', error);
+    }
+}
+
+async function loadUserProfile() {
+    try {
+        const response = await fetch('/api/user/profile', {
+            headers: {
+                'Authorization': `Bearer ${getCookie('auth_token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load user profile');
+        }
+        
+        const user = await response.json();
+        updateUserProfile(user.username);
+        
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        if (error.message.includes('No authentication token')) {
+            window.location.href = '/';
+        }
+    }
+}
+
+function updateUserProfile(username) {
+    const userInitials = document.getElementById('user-initials');
+    const usernameDisplay = document.getElementById('username-display');
+    
+    if (username) {
         const initials = username
             .split(' ')
             .map(word => word[0])
@@ -282,15 +402,4 @@ document.addEventListener('DOMContentLoaded', () => {
         userInitials.textContent = initials;
         usernameDisplay.textContent = username;
     }
-
-    // Check if user is logged in and update profile
-    const authToken = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth_token='));
-    
-    if (authToken) {
-        // TODO: Make API call to get user info
-        // For now, just show placeholder
-        updateUserProfile('John Doe');
-    }
-});
+}
