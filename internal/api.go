@@ -16,7 +16,7 @@ func NewServer(config types.ServerConfig) (*Server, error) {
 	router := mux.NewRouter()
 
 	server := &Server{
-		forest: core.NewForest("root"),
+		forest: core.NewForest("forest"),
 		jwtConfig: JWTConfig{
 			SecretKey: []byte("your-secret-key"),
 			ExpiresIn: 24 * time.Hour,

@@ -8,22 +8,43 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+    <div class="top-bar">
+        <div class="top-bar-section" id="user-profile">
+
+            <div class="section-header">
+                <span class="section-title">LumberJack Dashboard</span>
+            </div>
+            <div class="profile-content">
+                <div class="profile-circle">
+                    <span class="initials" id="user-initials">--</span>
+                </div>
+                <span class="username" id="username-display">Not logged in</span>
+                <div class="dropdown-menu" id="profile-menu">
+                    <ul>
+                        <li><a href="#" id="server-settings">Server Settings</a></li>
+                        <li><a href="#" id="logout">Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="dashboard">
         <nav class="sidebar">
             <div class="sidebar-header">
                 <img src="/static/images/logo.png" alt="LumberJack Logo" class="logo" style="width: 10rem; height: 10rem;">
             </div>
             <ul>
-                <li><a href="#" data-view="tree">Tree View</a></li>
-                <li><a href="#" data-view="events">Events</a></li>
+                <li><a href="#" data-view="forest">Forests</a></li>
+                <li><a href="#" data-view="tree">Trees</a></li>
                 <li><a href="#" data-view="logs">Logs</a></li>
                 <li><a href="#" data-view="users">Users</a></li>
             </ul>
         </nav>
-        
+
         <main class="content">
+            <div id="forest-view" class="view"></div>
             <div id="tree-view" class="view"></div>
-            <div id="events-view" class="view"></div>
             <div id="logs-view" class="view"></div>
             <div id="users-view" class="view">
                 <div class="users-header">

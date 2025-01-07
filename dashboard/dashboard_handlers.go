@@ -69,31 +69,39 @@ func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *DashboardServer) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get(s.apiEndpoint + "/get_users")
+	// Get auth token from cookie
+	cookie, err := r.Cookie("auth_token")
 	if err != nil {
-		http.Error(w, "Error connecting to API server: "+err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "No authentication token found",
+		})
+		return
+	}
+
+	// Make request to API server with auth token
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/get_users", nil)
+	req.Header.Set("Authorization", "Bearer "+cookie.Value)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Error connecting to API server: " + err.Error(),
+		})
 		return
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, "Error reading API response: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Check if response is an error message
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, string(body), resp.StatusCode)
-		return
-	}
-
-	// Set content type
+	// Always set JSON content type
 	w.Header().Set("Content-Type", "application/json")
 
-	// Write the response directly
-	w.Write(body)
+	// Copy status code
+	w.WriteHeader(resp.StatusCode)
+
+	// Copy response body
+	io.Copy(w, resp.Body)
 }
 
 func (s *DashboardServer) handleCreateUser(w http.ResponseWriter, r *http.Request) {

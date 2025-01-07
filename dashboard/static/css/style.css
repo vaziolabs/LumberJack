@@ -52,7 +52,7 @@ body {
 
 .content {
     flex: 1;
-    padding: 20px;
+    padding: calc(var(--header-height) + 1rem) 1rem 1rem 1rem;
     overflow-y: auto;
 }
 
@@ -164,4 +164,167 @@ body {
     width: 10rem;
     height: 10rem;
     object-fit: contain;
+}
+
+.top-bar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 1rem;
+    z-index: 1001;
+    align-items: center;
+    width: calc(100% - var(--sidebar-width));
+}
+
+.top-bar-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    position: relative;
+    min-width: 150px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.5rem;
+}
+
+.profile-content {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding-right: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 2rem;
+}
+
+.profile-circle {
+    width: 2rem;
+    height: 2rem;
+    background: var(--bg-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.initials {
+    font-weight: bold;
+    color: #666;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    background: white;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    min-width: 200px;
+    display: none;
+    z-index: 1001;
+}
+
+.dropdown-menu.active {
+    display: block;
+}
+
+.dropdown-menu ul {
+    list-style: none;
+    padding: 0.5rem 0;
+    margin: 0;
+}
+
+.dropdown-menu li a {
+    display: block;
+    padding: 0.5rem 1rem;
+    color: #333;
+    text-decoration: none;
+}
+
+.dropdown-menu li a:hover {
+    background: #f5f5f5;
+}
+
+.forest-graph {
+    width: 100%;
+    height: calc(100vh - 200px);
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.forest-controls {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tree-container {
+    padding: 1rem;
+}
+
+.tree-controls {
+    margin-bottom: 1rem;
+}
+
+.tree-table {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.tree-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.tree-table th,
+.tree-table td {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    text-align: left;
+}
+
+.logs-container {
+    padding: 1rem;
+}
+
+.logs-filter {
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 1rem;
+}
+
+.logs-list {
+    height: calc(100vh - 250px);
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 0.5rem;
+    border-bottom: 1px solid #ddd;
+    font-family: monospace;
+}
+
+.log-entry.error { background-color: #fff5f5; }
+.log-entry.warn { background-color: #fffbeb; }
+.log-entry.info { background-color: #f0f9ff; }
+
+.log-timestamp {
+    color: #666;
+    margin-right: 1rem;
+}
+
+.log-level {
+    font-weight: bold;
+    margin-right: 1rem;
 }

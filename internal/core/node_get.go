@@ -17,13 +17,14 @@ func (n *Node) GetPlannedEvents() (map[string]Event, error) {
 	return plannedEvents, nil
 }
 
+// TODO: Allow it to search for nodes by name or ID
 // GetNode retrieves a node by its ID
 func (n *Node) GetNode(nodeID string) (*Node, error) {
 	if n.ID == nodeID {
 		return n, nil
 	}
 
-	if nodeID == "root" {
+	if nodeID == "forest" {
 		return n, nil
 	}
 
