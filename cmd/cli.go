@@ -284,9 +284,29 @@ func runServer(cmd *cobra.Command, args []string) {
 }
 
 func createConfig(cmd *cobra.Command, args []string) {
-	config := types.Config{
-		Version:   "0.1.1-alpha",
-		Databases: make(map[string]types.DBConfig),
+	// Check if config file exists and load it if it does
+	var config types.Config
+	configFile := filepath.Join(defaultProcDir, "config.yaml")
+
+	if _, err := os.Stat(configFile); err == nil {
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(defaultProcDir)
+
+		if err := viper.ReadInConfig(); err != nil {
+			fmt.Printf("Error reading existing config: %v\n", err)
+			os.Exit(1)
+		}
+
+		if err := viper.Unmarshal(&config); err != nil {
+			fmt.Printf("Error parsing existing config: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		config = types.Config{
+			Version:   "0.1.1-alpha",
+			Databases: make(map[string]types.DBConfig),
+		}
 	}
 
 	dbConfig := types.DBConfig{
@@ -294,6 +314,30 @@ func createConfig(cmd *cobra.Command, args []string) {
 		Port:          "8080",
 		DashboardPort: "8081",
 		DbName:        "",
+	}
+
+	// Get database name
+	defaultDbName := "default"
+	if len(args) > 0 {
+		defaultDbName = args[0]
+	}
+
+	prompt := promptui.Prompt{
+		Label:    "LumberJack Database Name",
+		Default:  defaultDbName,
+		Validate: validateDBName,
+	}
+
+	dbName, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		os.Exit(1)
+	}
+
+	// Check if database already exists
+	if _, exists := config.Databases[dbName]; exists {
+		fmt.Printf("Database %s already exists\n", dbName)
+		os.Exit(1)
 	}
 
 	user := types.User{
@@ -304,17 +348,11 @@ func createConfig(cmd *cobra.Command, args []string) {
 		Email:        "admin@lumberjack.com",
 	}
 
-	defaultDbName := "default"
-	if len(args) > 0 {
-		defaultDbName = args[0]
-	}
-
 	prompts := []struct {
 		label    string
 		field    *string
 		default_ string
 	}{
-		{"LumberJack Database Name", &dbConfig.DbName, defaultDbName},
 		{"Organization", &user.Organization, "LumberJack"},
 		{"Email (optional):", &user.Email, ""},
 		{"Phone Number (optional):", &user.Phone, ""},
@@ -355,22 +393,19 @@ func createConfig(cmd *cobra.Command, args []string) {
 		user.Password = prompts[5].default_
 	}
 
-	dbName := "default"
-	if len(args) > 0 {
-		dbName = args[0]
-	}
-
 	dbConfig.DbName = dbName
 	config.Databases[dbName] = dbConfig
 
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(defaultProcDir)
-
+	// Save updated config
 	viper.Set("version", config.Version)
 	viper.Set("databases", config.Databases)
 
-	if err := viper.SafeWriteConfig(); err != nil {
+	if err := os.MkdirAll(defaultProcDir, 0755); err != nil {
+		fmt.Printf("Error creating config directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := viper.WriteConfigAs(configFile); err != nil {
 		fmt.Printf("Error writing config: %v\n", err)
 		os.Exit(1)
 	}
@@ -385,10 +420,10 @@ func createConfig(cmd *cobra.Command, args []string) {
 	// Create initial server to save admin info
 	serverConfig := types.ServerConfig{
 		DatabaseName:  dbName,
-		ServerURL:     fmt.Sprintf("http://%s:%s", dbConfig.Domain),
+		ServerURL:     dbConfig.Domain,
 		ServerPort:    dbConfig.Port,
 		Organization:  user.Organization,
-		DashboardURL:  fmt.Sprintf("http://%s:%s", dbConfig.Domain, dbConfig.DashboardPort),
+		DashboardURL:  dbConfig.Domain,
 		DashboardPort: dbConfig.DashboardPort,
 		LogDirectory:  defaultLogDir,
 		DatabasePath:  defaultLibDir,
@@ -396,7 +431,7 @@ func createConfig(cmd *cobra.Command, args []string) {
 	}
 
 	// Initialize server just to save admin info
-	_, err := internal.NewServer(serverConfig, user)
+	_, err = internal.NewServer(serverConfig, user)
 	if err != nil {
 		fmt.Printf("Error creating server: %v\n", err)
 		os.Exit(1)
@@ -751,4 +786,13 @@ func restartServer(cmd *cobra.Command, args []string) {
 	if proc.DashboardUp {
 		fmt.Printf("Dashboard restarted at http://%s:%s\n", config.Domain, config.DashboardPort)
 	}
+}
+
+// Add this function to handle database name validation
+func validateDBName(input string) error {
+	if len(input) < 1 {
+		return fmt.Errorf("database name cannot be empty")
+	}
+	// Add any other validation rules you need
+	return nil
 }
