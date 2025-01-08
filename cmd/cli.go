@@ -378,8 +378,8 @@ func createConfig(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 
-		if i == 6 {
-			if result != prompts[5].default_ {
+		if i == 5 {
+			if result != prompts[4].default_ {
 				fmt.Println("Passwords do not match")
 				os.Exit(1)
 			}
