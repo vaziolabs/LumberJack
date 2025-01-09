@@ -1,11 +1,15 @@
 package internal
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/vaziolabs/lumberjack/internal/core"
@@ -448,7 +452,6 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":            foundUser.ID,
 		"session_token": tokenPair.SessionToken,
 		"refresh_token": tokenPair.RefreshToken,
 	})
@@ -770,4 +773,101 @@ func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Requ
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// Add this new handler function
+func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
+
+	if !server.forest.CheckPermission(userID, core.AdminPermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	level := r.URL.Query().Get("level")
+
+	processes, err := server.getRunningProcesses()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get processes: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	var logPath string
+	for _, proc := range processes {
+		if proc.DbName == server.config.DatabaseName {
+			logPath = filepath.Join(proc.LogDirectory, fmt.Sprintf("lumberjack-%s.log", proc.ID))
+			break
+		}
+	}
+
+	if logPath == "" {
+		http.Error(w, "No active process found for this database", http.StatusNotFound)
+		return
+	}
+
+	logs, err := server.readLogFile(logPath, level)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to read logs: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(logs)
+}
+
+// Add helper method to get running processes
+func (server *Server) getRunningProcesses() ([]types.ProcessInfo, error) {
+	liveFiles, err := os.ReadDir("/etc/lumberjack/live")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []types.ProcessInfo{}, nil
+		}
+		return nil, err
+	}
+
+	var processes []types.ProcessInfo
+	for _, file := range liveFiles {
+		data, err := os.ReadFile(filepath.Join(server.config.LogDirectory, file.Name()+".dat"))
+		if err != nil {
+			continue
+		}
+
+		var proc types.ProcessInfo
+		if err := json.Unmarshal(data, &proc); err != nil {
+			continue
+		}
+
+		processes = append(processes, proc)
+	}
+
+	return processes, nil
+}
+
+// Add this helper method to the Server struct
+func (server *Server) readLogFile(path string, level string) ([]types.LogEntry, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var logs []types.LogEntry
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		entry := types.LogEntry{
+			Timestamp: time.Now(), // You'll need to parse this from the log line
+			Message:   line,
+			Level:     "INFO", // You'll need to parse this from the log line
+		}
+
+		// Filter by level if specified
+		if level != "" && strings.ToUpper(level) != entry.Level {
+			continue
+		}
+
+		logs = append(logs, entry)
+	}
+
+	return logs, scanner.Err()
 }

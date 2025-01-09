@@ -24,17 +24,19 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 	// Create unique ID for this instance
 	id := generateID()
 
-	// Ensure /var/lib/lumberjack exists for .dat files
-	if err := os.MkdirAll("/var/lib/lumberjack", 0755); err != nil {
-		return fmt.Errorf("failed to create process directory: %v", err)
+	// Use the configured log directory or default
+	logDirectory := "/var/log/lumberjack"
+	if config.LogDirectory != "" {
+		logDirectory = config.LogDirectory
 	}
 
-	// Create log file in /var/log/lumberjack
-	logPath := filepath.Join("/var/log/lumberjack", fmt.Sprintf("lumberjack-%s.log", id))
-	if err := os.MkdirAll("/var/log/lumberjack", 0755); err != nil {
+	// Ensure log directory exists
+	if err := os.MkdirAll(logDirectory, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %v", err)
 	}
 
+	// Create log file in configured directory
+	logPath := filepath.Join(logDirectory, fmt.Sprintf("lumberjack-%s.log", id))
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %v", err)
@@ -65,7 +67,7 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 	// Don't wait for the process
 	go cmd.Process.Release()
 
-	// Save process info to individual .dat file
+	// Save process info with log directory
 	proc := types.ProcessInfo{
 		ID:            id,
 		APIPort:       config.Port,
@@ -73,6 +75,7 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 		PID:           cmd.Process.Pid,
 		DbName:        config.DbName,
 		DashboardUp:   withDashboard,
+		LogDirectory:  logDirectory,
 	}
 
 	data, err := json.Marshal(proc)

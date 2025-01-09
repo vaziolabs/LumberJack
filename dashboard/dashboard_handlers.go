@@ -2,10 +2,13 @@ package dashboard
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"html/template"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -15,8 +18,14 @@ func (s *DashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request
 }
 
 func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) {
-	req, _ := http.NewRequest("GET", s.apiEndpoint+"/forest/tree", nil)
-	req.Header.Set("Authorization", r.Header.Get("Authorization"))
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Error(w, "No authentication token found", http.StatusUnauthorized)
+		return
+	}
+
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/forest", nil)
+	req.Header.Set("Authorization", "Bearer "+cookie.Value)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -26,7 +35,7 @@ func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) 
 	}
 	defer resp.Body.Close()
 
-	w.WriteHeader(resp.StatusCode)
+	w.Header().Set("Content-Type", "application/json")
 	io.Copy(w, resp.Body)
 }
 
@@ -49,13 +58,32 @@ func (s *DashboardServer) handleGetEvents(w http.ResponseWriter, r *http.Request
 }
 
 func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) {
-	// Similar to events but for system logs
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Error(w, "No authentication token found", http.StatusUnauthorized)
+		return
+	}
+
+	req, _ := http.NewRequest("GET", s.apiEndpoint+"/logs", nil)
+	req.Header.Set("Authorization", "Bearer "+cookie.Value)
+
+	// Forward query parameters for filtering
+	req.URL.RawQuery = r.URL.RawQuery
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Error connecting to API server: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode([]string{"Log functionality to be implemented"})
+	io.Copy(w, resp.Body)
 }
 
 func (s *DashboardServer) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("auth_token")
+	cookie, err := r.Cookie("session_token")
 	if err != nil {
 		http.Error(w, "No authentication token found", http.StatusUnauthorized)
 		return
@@ -63,26 +91,16 @@ func (s *DashboardServer) handleGetUsers(w http.ResponseWriter, r *http.Request)
 
 	req, _ := http.NewRequest("GET", s.apiEndpoint+"/users", nil)
 	req.Header.Set("Authorization", "Bearer "+cookie.Value)
-	req.Header.Set("X-User-ID", r.Header.Get("X-User-ID"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Error connecting to API server: " + err.Error(),
-		})
+		http.Error(w, "Error connecting to API server: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Always set JSON content type
 	w.Header().Set("Content-Type", "application/json")
-
-	// Copy status code
-	w.WriteHeader(resp.StatusCode)
-
-	// Copy response body
 	io.Copy(w, resp.Body)
 }
 
@@ -120,122 +138,170 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.logger.Enter("Login")
 	defer s.logger.Exit("Login")
 
-	var credentials struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
-		s.logger.Error("Error decoding login credentials: %v", err)
+	// Read the request body
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		s.logger.Error("Error reading request body: %v", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Create proper JSON payload
-	jsonData, err := json.Marshal(credentials)
+	// Forward login request to API
+	resp, err := http.Post(s.apiEndpoint+"/login", "application/json", bytes.NewBuffer(body))
 	if err != nil {
-		s.logger.Error("Error encoding login credentials: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Make request to API server
-	resp, err := http.Post(s.apiEndpoint+"/login", "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		s.logger.Error("Error making login request: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.logger.Error("Error connecting to API: %v", err)
+		http.Error(w, "Failed to connect to API", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		s.logger.Error("Login request failed with status: %v", resp.StatusCode)
-		http.Error(w, string(body), resp.StatusCode)
+	// Read the API response
+	apiResponse, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.logger.Error("Error reading API response: %v", err)
+		http.Error(w, "Failed to read API response", http.StatusInternalServerError)
 		return
 	}
 
 	// Parse the API response
 	var loginResponse struct {
-		Status       string `json:"status"`
-		Token        string `json:"token"`
+		SessionToken string `json:"session_token"`
 		RefreshToken string `json:"refresh_token"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&loginResponse); err != nil {
-		s.logger.Error("Invalid response from server: %v", err)
-		http.Error(w, "Invalid response from server", http.StatusInternalServerError)
+	if err := json.Unmarshal(apiResponse, &loginResponse); err != nil {
+		s.logger.Error("Error parsing API response: %v", err)
+		http.Error(w, "Invalid API response", http.StatusInternalServerError)
 		return
 	}
 
-	s.logger.Info("Setting cookies for user: %s", credentials.Username)
+	// Set cookies if we have valid tokens
+	if loginResponse.SessionToken != "" {
+		isSecure := !strings.HasPrefix(s.apiEndpoint, "http://localhost")
 
-	// Only set session_token and refresh_token cookies
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_token",
-		Value:    loginResponse.Token,
-		Path:     "/",
-		HttpOnly: false, // Accessible to JS for API calls
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   3600,
-	})
+		// Parse the JWT to get expiry time
+		parts := strings.Split(loginResponse.SessionToken, ".")
+		if len(parts) == 3 {
+			var claims struct {
+				Exp int64 `json:"exp"`
+			}
+			if payload, err := base64.RawURLEncoding.DecodeString(parts[1]); err == nil {
+				if err := json.Unmarshal(payload, &claims); err == nil {
+					http.SetCookie(w, &http.Cookie{
+						Name:     "session_expiry",
+						Value:    strconv.FormatInt(claims.Exp*1000, 10), // Convert to milliseconds
+						Path:     "/",
+						HttpOnly: false,
+						Secure:   isSecure,
+						SameSite: http.SameSiteStrictMode,
+						MaxAge:   3600,
+					})
+				}
+			}
+		}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    loginResponse.RefreshToken,
-		Path:     "/",
-		HttpOnly: true, // Not accessible to JS
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   604800, // 7 days
-	})
+		// Set session token cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_token",
+			Value:    loginResponse.SessionToken,
+			Path:     "/",
+			HttpOnly: false,
+			Secure:   isSecure,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   3600,
+		})
 
-	// Return minimal response
+		// Set refresh token cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "refresh_token",
+			Value:    loginResponse.RefreshToken,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   isSecure,
+			SameSite: http.SameSiteStrictMode,
+			MaxAge:   604800,
+		})
+	}
+
+	// Forward the API response to the client
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "success",
-	})
+	w.WriteHeader(resp.StatusCode)
+	w.Write(apiResponse)
 }
 
 func (s *DashboardServer) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
-	refreshToken, err := r.Cookie("refresh_token")
+	// Get refresh token from cookie
+	refreshCookie, err := r.Cookie("refresh_token")
 	if err != nil {
 		http.Error(w, "No refresh token found", http.StatusUnauthorized)
 		return
 	}
 
-	// Call API to get new session token using refresh token
-	resp, err := http.Post(s.apiEndpoint+"/refresh", "application/json",
-		bytes.NewBuffer([]byte(`{"refresh_token": "`+refreshToken.Value+`"}`)))
+	// Forward refresh request to API
+	req, _ := http.NewRequest("POST", s.apiEndpoint+"/refresh", nil)
+	req.Header.Set("Authorization", "Bearer "+refreshCookie.Value)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, "Failed to refresh token", http.StatusInternalServerError)
+		http.Error(w, "Error connecting to API server", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
-		return
-	}
-
+	// Parse the API response
 	var newTokens struct {
 		SessionToken string `json:"session_token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&newTokens); err != nil {
-		http.Error(w, "Invalid response", http.StatusInternalServerError)
+		http.Error(w, "Invalid API response", http.StatusInternalServerError)
 		return
 	}
 
-	// Set new session token
-	http.SetCookie(w, &http.Cookie{
-		Name:     "session_token",
-		Value:    newTokens.SessionToken,
-		Path:     "/",
-		HttpOnly: false,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   3600,
-	})
+	// Set new cookies if we have valid tokens
+	if newTokens.SessionToken != "" {
+		isSecure := !strings.HasPrefix(s.apiEndpoint, "http://localhost")
+
+		// Parse the JWT to get expiry time
+		parts := strings.Split(newTokens.SessionToken, ".")
+		if len(parts) == 3 {
+			var claims struct {
+				Exp int64 `json:"exp"`
+			}
+			if payload, err := base64.RawURLEncoding.DecodeString(parts[1]); err == nil {
+				if err := json.Unmarshal(payload, &claims); err == nil {
+					http.SetCookie(w, &http.Cookie{
+						Name:     "session_expiry",
+						Value:    strconv.FormatInt(claims.Exp*1000, 10), // Convert to milliseconds
+						Path:     "/",
+						HttpOnly: false,
+						Secure:   isSecure,
+						SameSite: http.SameSiteStrictMode,
+					})
+				}
+			}
+		}
+
+		// Set new session token
+		http.SetCookie(w, &http.Cookie{
+			Name:     "session_token",
+			Value:    newTokens.SessionToken,
+			Path:     "/",
+			HttpOnly: false,
+			Secure:   isSecure,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		// Set new refresh token
+		http.SetCookie(w, &http.Cookie{
+			Name:     "refresh_token",
+			Value:    newTokens.RefreshToken,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   isSecure,
+			SameSite: http.SameSiteStrictMode,
+		})
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -272,13 +338,15 @@ func (s *DashboardServer) handleGetUserProfile(w http.ResponseWriter, r *http.Re
 }
 
 func (s *DashboardServer) handleLogout(w http.ResponseWriter, r *http.Request) {
-	// Clear both cookies
+	// Clear cookies with same attributes
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Now().Add(-24 * time.Hour),
 		HttpOnly: false,
+		Secure:   !strings.HasPrefix(s.apiEndpoint, "http://localhost"),
+		SameSite: http.SameSiteStrictMode,
 	})
 	http.SetCookie(w, &http.Cookie{
 		Name:     "refresh_token",
@@ -286,6 +354,8 @@ func (s *DashboardServer) handleLogout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		Expires:  time.Now().Add(-24 * time.Hour),
 		HttpOnly: true,
+		Secure:   !strings.HasPrefix(s.apiEndpoint, "http://localhost"),
+		SameSite: http.SameSiteStrictMode,
 	})
 	w.WriteHeader(http.StatusOK)
 }

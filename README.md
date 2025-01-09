@@ -78,8 +78,11 @@ To delete configuration:
     - [ ] MFA
     - [ ] Third Party Integration (Slack, Google Calendar, etc.)
  - [ ] Create Typescript module for direct API integration
- - [ ] Add TLS
- - [ ] Improve Session Authentication for Database & Dashboard
+ - [ ] Security
+    - [ ] Add TLS
+    - [ ] Improve Session Authentication for Database & Dashboard
+    - [ ] Remove Session Token from frontend Cookie 
+    - [ ] Remove Sensitive Data from logs
     - [X] Add JWT
     - [ ] Integrate for Certificate Authentication
     - [ ] Add Session Expiration

@@ -121,6 +121,7 @@ func (s *Server) Start() error {
 	router.HandleFunc("/attachments/{id}", s.authMiddleware(s.handleGetAttachment)).Methods("GET")
 	router.HandleFunc("/attachments/{id}", s.authMiddleware(s.handleDeleteAttachment)).Methods("DELETE")
 	router.HandleFunc("/events/{eventId}/entries/{entryIndex}/attachments", s.authMiddleware(s.handleAddEntryAttachment)).Methods("POST")
+	router.HandleFunc("/logs", s.authMiddleware(s.handleGetLogs)).Methods("GET")
 
 	s.server.Handler = router
 	go func() {

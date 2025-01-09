@@ -22,12 +22,6 @@
         © <span id="year"></span> Vazio Labs
     </div>
     <script>
-        // Preserve console logs across page refreshes
-        if (!window.location.hash.includes('preserve-log')) {
-            window.location.hash = 'preserve-log';
-            window.location.reload();
-        }
-
         // Fetch version from GitHub API tags
         fetch('https://api.github.com/repos/vaziolabs/lumberjack/tags')
             .then(response => response.json())
@@ -47,7 +41,8 @@
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            console.log('Login attempt starting');
+            const errorMessage = document.getElementById('error-message');
+            
             try {
                 const response = await fetch('/login', {
                     method: 'POST',
@@ -58,21 +53,20 @@
                         username: document.getElementById('username').value,
                         password: document.getElementById('password').value,
                     }),
+                    credentials: 'include'
                 });
                 
                 const data = await response.json();
-                console.log('Login response:', data);
                 
-                if (data.token && data.id) {
-                    console.log('Login successful, redirecting to dashboard');
-                    document.cookie = `username=${data.username}; path=/;`;
+                if (!response.ok) { throw new Error(data.error || 'Login failed'); }
+                
+                if (data.session_token) {
                     window.location.href = '/dashboard';
                 } else {
-                    document.getElementById('error-message').textContent = 'Invalid server response';
+                    errorMessage.textContent = 'Invalid login response';
                 }
             } catch (error) {
-                console.error('Login error:', error);
-                document.getElementById('error-message').textContent = 'An error occurred during login';
+                errorMessage.textContent = error.message || 'An error occurred during login';
             }
         });
     </script>

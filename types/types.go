@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 type ProcessInfo struct {
 	ID            string `json:"id"`
 	APIPort       string `json:"api_port"`
@@ -7,6 +9,7 @@ type ProcessInfo struct {
 	DashboardUp   bool   `json:"dashboard_up"`
 	PID           int    `json:"pid"`
 	DbName        string `json:"db_name"`
+	LogDirectory  string `json:"log_directory"`
 }
 
 type Config struct {
@@ -19,6 +22,7 @@ type DBConfig struct {
 	Port          string `yaml:"port"`
 	DashboardPort string `yaml:"dashboardport"`
 	DbName        string `yaml:"dbname"`
+	LogDirectory  string `yaml:"logdirectory"`
 }
 
 type User struct {
@@ -39,4 +43,11 @@ type ServerConfig struct {
 	DashboardURL  string `json:"dashboard_url,omitempty"`
 	DashboardPort string `json:"dashboard_port"`
 	Phone         string `json:"phone,omitempty"`
+}
+
+type LogEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Level     string    `json:"level"`
+	Message   string    `json:"message"`
+	Trace     string    `json:"trace,omitempty"`
 }

@@ -34,11 +34,12 @@ func NewDashboard(apiEndpoint string, port string) *DashboardServer {
 
 	// Auth routes
 	router.HandleFunc("/login", dashboardServer.handleLogin).Methods("POST")
+	router.HandleFunc("/api/refresh", dashboardServer.handleRefreshToken).Methods("POST")
 
 	// Protected API routes
 	protected := router.PathPrefix("/api").Subrouter()
 	protected.Use(dashboardServer.authMiddleware)
-	protected.HandleFunc("/tree", dashboardServer.handleGetTree).Methods("GET")
+	protected.HandleFunc("/forest", dashboardServer.handleGetTree).Methods("GET")
 	protected.HandleFunc("/events", dashboardServer.handleGetEvents).Methods("GET")
 	protected.HandleFunc("/logs", dashboardServer.handleGetLogs).Methods("GET")
 	protected.HandleFunc("/users", dashboardServer.handleGetUsers).Methods("GET")

@@ -104,13 +104,9 @@ document.querySelectorAll('.sidebar a').forEach(link => {
 
 // Modify the initial load section
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOMContentLoaded triggered');
     const token = getCookie('session_token');
-    console.log('Token found:', !!token);
-    
     if (!token) {
         window.location.href = '/';
-        console.log('No token found, redirecting to login');
         return;
     }
 
@@ -141,13 +137,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 method: 'POST',
                 headers: {
                     'X-User-ID': getCookie('user_id'),
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${getCookie('session_token')}`
                 }
             });
         } catch (error) {
             console.error('Error during logout:', error);
         } finally {
-            document.cookie = 'auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
             window.location.href = '/';
         }
     });
@@ -178,7 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadViewData(viewName) {
     try {
-        const token = getCookie('auth_token');
+        const token = getCookie('session_token');
         const endpoints = {
             forest: '/api/forest',
             tree: '/api/tree',
@@ -265,42 +260,16 @@ function renderEvents(data) {
 
 function renderLogs(data) {
     const logsView = document.getElementById('logs-view');
-    logsView.innerHTML = `
-        <div class="logs-container">
-            <h2>System Logs</h2>
-            <div class="logs-filter">
-                <select id="log-level">
-                    <option value="all">All Levels</option>
-                    <option value="debug">Debug</option>
-                    <option value="info">Info</option>
-                    <option value="notice">Notice</option>
-                    <option value="warn">Warning</option>
-                    <option value="error">Error</option>
-                    <option value="critical">Critical</option>
-                    <option value="alert">Alert</option>
-                    <option value="emergency">Emergency</option>
-                    <option value="success">Success</option>
-                    <option value="failure">Failure</option>
-                    <option value="enter">Enter</option>
-                    <option value="exit">Exit</option>
-                    <option value="other">Uncategorized</option>
-                </select>
-                <input type="text" id="log-search" placeholder="Search logs...">
-            </div>
-            <div class="logs-list" id="logs-list"></div>
-        </div>
-    `;
-
-    updateLogs(data);
-}
-
-function updateLogs(logs) {
     const logsList = document.getElementById('logs-list');
-    logsList.innerHTML = logs.map(log => `
+    
+    if (!logsList) return;
+    
+    logsList.innerHTML = data.map(log => `
         <div class="log-entry ${log.level.toLowerCase()}">
             <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
             <span class="log-level">${log.level}</span>
             <span class="log-message">${log.message}</span>
+            ${log.trace ? `<pre class="log-trace">${log.trace}</pre>` : ''}
         </div>
     `).join('');
 }
@@ -313,10 +282,16 @@ const Permission = {
 };
 
 function getCookie(name) {
-    console.log('Cookie name:', name);
-    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-    console.log('Cookie match:', match);
-    if (match) return match[2];
+    // console.log('Getting cookie:', name);
+    // console.log('All cookies:', document.cookie);
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        const cookieValue = parts.pop().split(';').shift();
+        // console.log('Found cookie value:', cookieValue);
+        return cookieValue;
+    }
+    // console.log('Cookie not found');
     return null;
 }
 
@@ -442,22 +417,28 @@ async function refreshToken() {
     }
 }
 
-// Update the fetch wrapper to handle token refresh
+// Update the fetch wrapper to include credentials
 async function fetchWithAuth(url, options = {}) {
     try {
         const response = await fetch(url, {
             ...options,
-            credentials: 'same-origin'
+            credentials: 'include',
+            headers: {
+                ...options.headers,
+                'Authorization': `Bearer ${getCookie('session_token')}`
+            }
         });
         
         if (response.status === 401) {
-            // Try to refresh the token
             const refreshed = await refreshToken();
             if (refreshed) {
-                // Retry the original request
                 return fetch(url, {
                     ...options,
-                    credentials: 'same-origin'
+                    credentials: 'include',
+                    headers: {
+                        ...options.headers,
+                        'Authorization': `Bearer ${getCookie('session_token')}`
+                    }
                 });
             }
         }
@@ -475,4 +456,75 @@ setInterval(async () => {
     if (sessionExpiry && Date.now() > parseInt(sessionExpiry) - (5 * 60 * 1000)) {
         await refreshToken();
     }
-}, 60000); // Check every minute
+}, 300000); 
+
+async function loadForest() {
+    try {
+        const response = await fetch('/api/forest', {
+            headers: {
+                'Authorization': `Bearer ${getCookie('session_token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load forest data');
+        }
+        
+        const data = await response.json();
+        renderForest(data);
+    } catch (error) {
+        console.error('Error loading forest:', error);
+    }
+}
+
+async function loadLogs() {
+    try {
+        const response = await fetch('/api/logs', {
+            headers: {
+                'Authorization': `Bearer ${getCookie('session_token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load logs');
+        }
+        
+        const data = await response.json();
+        renderLogs(data);
+    } catch (error) {
+        console.error('Error loading logs:', error);
+    }
+}
+
+// Add log filtering functionality
+document.getElementById('log-level')?.addEventListener('change', async (e) => {
+    const level = e.target.value;
+    const url = level === 'all' ? '/api/logs' : `/api/logs?level=${level}`;
+    
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${getCookie('session_token')}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to filter logs');
+        }
+        
+        const data = await response.json();
+        renderLogs(data);
+    } catch (error) {
+        console.error('Error filtering logs:', error);
+    }
+});
+
+document.getElementById('log-search')?.addEventListener('input', (e) => {
+    const searchTerm = e.target.value.toLowerCase();
+    const logEntries = document.querySelectorAll('.log-entry');
+    
+    logEntries.forEach(entry => {
+        const text = entry.textContent.toLowerCase();
+        entry.style.display = text.includes(searchTerm) ? 'block' : 'none';
+    });
+});
