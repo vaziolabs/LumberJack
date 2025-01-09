@@ -127,6 +127,59 @@ curl -X POST http://localhost:8080/login \
   }'
 ```
 
+### Authentication Response
+```json
+{
+  "session_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+### Attachments
+
+#### Upload Attachment
+```bash
+curl -X POST http://localhost:8080/attachments/upload \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@/path/to/file.jpg" \
+  -F "path=work/projects/project-alpha"
+```
+
+#### Get Attachment
+```bash
+curl -X GET http://localhost:8080/attachments/{id} \
+  -H "Authorization: Bearer <token>" \
+  -G --data-urlencode "path=work/projects/project-alpha"
+```
+
+#### Delete Attachment
+```bash
+curl -X DELETE http://localhost:8080/attachments/{id} \
+  -H "Authorization: Bearer <token>" \
+  -G --data-urlencode "path=work/projects/project-alpha"
+```
+
+#### Add Entry Attachment
+```bash
+curl -X POST http://localhost:8080/events/{eventId}/entries/{entryIndex}/attachments \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@/path/to/file.jpg" \
+  -F "path=work/projects/project-alpha"
+```
+
+### Attachment Response
+```json
+{
+  "id": "att-123",
+  "name": "document.pdf",
+  "type": "application/pdf",
+  "size": 1048576,
+  "hash": "sha256-hash",
+  "uploaded_by": "user-123",
+  "uploaded_at": "2024-01-15T10:30:00Z"
+}
+```
+
 ### Node Management
 
 #### Get Forest

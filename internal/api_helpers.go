@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/spf13/viper"
@@ -25,19 +26,16 @@ func compareHashes(a, b []byte) bool {
 	return true
 }
 
-// Add middleware for authentication
+// Update the auth middleware to handle user_id from token claims
 func (server *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		tokenString := r.Header.Get("Authorization")
+		tokenString := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tokenString == "" {
 			http.Error(w, "No token provided", http.StatusUnauthorized)
 			return
 		}
 
-		// Remove "Bearer " prefix if present
-		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(tokenString, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -49,14 +47,14 @@ func (server *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+		claims, ok := token.Claims.(*TokenClaims)
+		if !ok || claims.TokenType != "session" {
+			http.Error(w, "Invalid session token", http.StatusUnauthorized)
 			return
 		}
 
-		// Add user info to request context
-		ctx := context.WithValue(r.Context(), "user_id", claims["user_id"])
+		// Add user info to context
+		ctx := context.WithValue(r.Context(), "user_id", claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
@@ -122,10 +120,53 @@ func (server *Server) UpdateSettings(userID string, settings types.ServerConfig)
 
 	// Save updated configuration
 	return server.saveConfig()
+
+	// TODO: Trigger a refresh of the dashboard and a reload of the server if needed
 }
 
 // saveConfig writes the current configuration to disk
 func (server *Server) saveConfig() error {
 	viper.Set("databases."+server.config.DatabaseName, server.config)
 	return viper.WriteConfig()
+}
+
+func (server *Server) generateTokenPair(user *core.User) (*TokenPair, error) {
+	// Generate session token (short-lived)
+	sessionClaims := TokenClaims{
+		UserID:    user.ID,
+		Username:  user.Username,
+		TokenType: "session",
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(1 * time.Hour).Unix(),
+			IssuedAt:  time.Now().Unix(),
+		},
+	}
+
+	sessionToken := jwt.NewWithClaims(jwt.SigningMethodHS256, sessionClaims)
+	sessionTokenString, err := sessionToken.SignedString(server.jwtConfig.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate refresh token (long-lived)
+	refreshClaims := TokenClaims{
+		UserID:    user.ID,
+		Username:  user.Username,
+		TokenType: "refresh",
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(7 * 24 * time.Hour).Unix(),
+			IssuedAt:  time.Now().Unix(),
+		},
+	}
+
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString(server.jwtConfig.SecretKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenPair{
+		SessionToken: sessionTokenString,
+		RefreshToken: refreshTokenString,
+	}, nil
 }

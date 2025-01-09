@@ -17,7 +17,6 @@ func (s *DashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request
 func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) {
 	req, _ := http.NewRequest("GET", s.apiEndpoint+"/forest/tree", nil)
 	req.Header.Set("Authorization", r.Header.Get("Authorization"))
-	req.Header.Set("X-User-ID", r.Header.Get("X-User-ID"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -27,24 +26,8 @@ func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) 
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, "Error reading API response: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Check if response is an error message
-	if resp.StatusCode != http.StatusOK {
-		http.Error(w, string(body), resp.StatusCode)
-		return
-	}
-
-	// Set content type
-	w.Header().Set("Content-Type", "application/json")
-
-	// Write the response directly
-	w.Write(body)
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }
 
 func (s *DashboardServer) handleGetEvents(w http.ResponseWriter, r *http.Request) {
@@ -174,9 +157,9 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Parse the API response
 	var loginResponse struct {
-		Status string `json:"status"`
-		Token  string `json:"token"`
-		ID     string `json:"id"`
+		Status       string `json:"status"`
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&loginResponse); err != nil {
 		s.logger.Error("Invalid response from server: %v", err)
@@ -186,42 +169,82 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("Setting cookies for user: %s", credentials.Username)
 
-	// Set cookies
+	// Only set session_token and refresh_token cookies
 	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
+		Name:     "session_token",
 		Value:    loginResponse.Token,
 		Path:     "/",
-		HttpOnly: false,
+		HttpOnly: false, // Accessible to JS for API calls
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400,
+		MaxAge:   3600,
 	})
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     "user_id",
-		Value:    loginResponse.ID,
+		Name:     "refresh_token",
+		Value:    loginResponse.RefreshToken,
+		Path:     "/",
+		HttpOnly: true, // Not accessible to JS
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   604800, // 7 days
+	})
+
+	// Return minimal response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success",
+	})
+}
+
+func (s *DashboardServer) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
+	refreshToken, err := r.Cookie("refresh_token")
+	if err != nil {
+		http.Error(w, "No refresh token found", http.StatusUnauthorized)
+		return
+	}
+
+	// Call API to get new session token using refresh token
+	resp, err := http.Post(s.apiEndpoint+"/refresh", "application/json",
+		bytes.NewBuffer([]byte(`{"refresh_token": "`+refreshToken.Value+`"}`)))
+	if err != nil {
+		http.Error(w, "Failed to refresh token", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	var newTokens struct {
+		SessionToken string `json:"session_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&newTokens); err != nil {
+		http.Error(w, "Invalid response", http.StatusInternalServerError)
+		return
+	}
+
+	// Set new session token
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    newTokens.SessionToken,
 		Path:     "/",
 		HttpOnly: false,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   86400,
+		MaxAge:   3600,
 	})
 
-	// Set response headers and send response
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":   "success",
-		"token":    loginResponse.Token,
-		"id":       loginResponse.ID,
-		"username": credentials.Username,
-	})
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *DashboardServer) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("auth_token")
+		cookie, err := r.Cookie("session_token")
 		if err != nil {
-			s.logger.Error("No auth token found")
+			s.logger.Error("No session token found")
 			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
@@ -249,9 +272,16 @@ func (s *DashboardServer) handleGetUserProfile(w http.ResponseWriter, r *http.Re
 }
 
 func (s *DashboardServer) handleLogout(w http.ResponseWriter, r *http.Request) {
-	// Clear the auth cookie
+	// Clear both cookies
 	http.SetCookie(w, &http.Cookie{
-		Name:     "auth_token",
+		Name:     "session_token",
+		Value:    "",
+		Path:     "/",
+		Expires:  time.Now().Add(-24 * time.Hour),
+		HttpOnly: false,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
 		Value:    "",
 		Path:     "/",
 		Expires:  time.Now().Add(-24 * time.Hour),

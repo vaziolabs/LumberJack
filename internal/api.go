@@ -99,6 +99,7 @@ func (s *Server) Start() error {
 
 	// Public routes
 	router.HandleFunc("/login", s.handleLogin).Methods("POST")
+	router.HandleFunc("/refresh", s.handleRefreshToken).Methods("POST")
 	router.HandleFunc("/users/create", s.handleCreateUser).Methods("POST")
 	// Protected routes
 	router.HandleFunc("/time", s.authMiddleware(s.handleGetTimeTracking)).Methods("GET")
@@ -116,6 +117,10 @@ func (s *Server) Start() error {
 	router.HandleFunc("/users/profile", s.authMiddleware(s.handleGetUserProfile)).Methods("GET")
 	router.HandleFunc("/settings/", s.authMiddleware(s.handleGetServerSettings)).Methods("GET")
 	router.HandleFunc("/settings/update", s.authMiddleware(s.handleUpdateServerSettings)).Methods("POST")
+	router.HandleFunc("/attachments/upload", s.authMiddleware(s.handleUploadAttachment)).Methods("POST")
+	router.HandleFunc("/attachments/{id}", s.authMiddleware(s.handleGetAttachment)).Methods("GET")
+	router.HandleFunc("/attachments/{id}", s.authMiddleware(s.handleDeleteAttachment)).Methods("DELETE")
+	router.HandleFunc("/events/{eventId}/entries/{entryIndex}/attachments", s.authMiddleware(s.handleAddEntryAttachment)).Methods("POST")
 
 	s.server.Handler = router
 	go func() {

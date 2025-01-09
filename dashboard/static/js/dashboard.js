@@ -4,8 +4,7 @@ async function loadUsers() {
     try {
         const response = await fetch('/api/users', {
             headers: {
-                'Authorization': `Bearer ${getCookie('auth_token')}`,
-                'X-User-ID': getCookie('user_id')
+                'Authorization': `Bearer ${getCookie('session_token')}`
             }
         });
         
@@ -17,10 +16,10 @@ async function loadUsers() {
         
         renderUsers(data);
     } catch (error) {
-        console.error('Error loading users:', error.message);
         if (error.message.includes('No authentication token')) {
             window.location.href = '/';
         }
+        console.error('Error loading users:', error.message);
     }
 }
 
@@ -72,7 +71,7 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getCookie('auth_token')}`
+                'Authorization': `Bearer ${getCookie('session_token')}`
             },
             body: JSON.stringify(formData)
         });
@@ -106,12 +105,12 @@ document.querySelectorAll('.sidebar a').forEach(link => {
 // Modify the initial load section
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOMContentLoaded triggered');
-    const token = getCookie('auth_token');
-    console.log('Token found:', !!token);  // Log if token exists, not the actual token
+    const token = getCookie('session_token');
+    console.log('Token found:', !!token);
     
     if (!token) {
+        window.location.href = '/';
         console.log('No token found, redirecting to login');
-        // window.location.href = '/';
         return;
     }
 
@@ -154,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     try {
-        console.log('Fetching user profile');
         const profileResponse = await fetch('/api/user/profile', {
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -162,24 +160,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
-        console.log('Profile response status:', profileResponse.status);
-        
         if (!profileResponse.ok) {
             throw new Error('Failed to load user profile');
         }
         
         const userData = await profileResponse.json();
-        console.log('User data received:', userData);
-        
         updateUserProfile(userData.username);
         
         // Then load view data
         await loadViewData('forest');
         await loadUsers();
     } catch (error) {
-        console.error('Error during initialization:', error);
-        console.log('Stack trace:', error.stack);
         window.location.href = '/';
+        console.error('Error during initialization:', error);
     }
 });
 
@@ -202,6 +195,7 @@ async function loadViewData(viewName) {
         
         if (response.status === 401) {
             window.location.href = '/';
+            console.error('Unauthorized access');
             return;
         }
         
@@ -379,7 +373,7 @@ async function handleServerSettingsSave(e) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${getCookie('auth_token')}`
+                'Authorization': `Bearer ${getCookie('session_token')}`
             },
             body: JSON.stringify(settings)
         });
@@ -398,7 +392,7 @@ async function loadUserProfile() {
     try {
         const response = await fetch('/api/users/profile', {
             headers: {
-                'Authorization': `Bearer ${getCookie('auth_token')}`,
+                'Authorization': `Bearer ${getCookie('session_token')}`,
                 'X-User-ID': getCookie('user_id')
             }
         });
@@ -411,10 +405,10 @@ async function loadUserProfile() {
         updateUserProfile(user.username);
         
     } catch (error) {
-        console.error('Error loading user profile:', error);
         if (error.message.includes('No authentication token')) {
             window.location.href = '/';
         }
+        console.error('Error loading user profile:', error);
     }
 }
 
@@ -428,3 +422,57 @@ function updateUserProfile(username) {
         usernameDisplay.textContent = username;
     }
 }
+
+async function refreshToken() {
+    try {
+        const response = await fetch('/api/refresh', {
+            method: 'POST',
+            credentials: 'same-origin'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to refresh token');
+        }
+        
+        return true;
+    } catch (error) {
+        window.location.href = '/';
+        console.error('Error refreshing token:', error);
+        return false;
+    }
+}
+
+// Update the fetch wrapper to handle token refresh
+async function fetchWithAuth(url, options = {}) {
+    try {
+        const response = await fetch(url, {
+            ...options,
+            credentials: 'same-origin'
+        });
+        
+        if (response.status === 401) {
+            // Try to refresh the token
+            const refreshed = await refreshToken();
+            if (refreshed) {
+                // Retry the original request
+                return fetch(url, {
+                    ...options,
+                    credentials: 'same-origin'
+                });
+            }
+        }
+        
+        return response;
+    } catch (error) {
+        console.error('Fetch error:', error);
+        throw error;
+    }
+}
+
+// Add token refresh interval
+setInterval(async () => {
+    const sessionExpiry = getCookie('session_expiry');
+    if (sessionExpiry && Date.now() > parseInt(sessionExpiry) - (5 * 60 * 1000)) {
+        await refreshToken();
+    }
+}, 60000); // Check every minute

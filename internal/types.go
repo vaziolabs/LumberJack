@@ -11,8 +11,10 @@ import (
 
 // JWTConfig holds JWT configuration
 type JWTConfig struct {
-	SecretKey []byte
-	ExpiresIn time.Duration
+	SessionKey []byte
+	RefreshKey []byte
+	ExpiresIn  time.Duration
+	SecretKey  []byte
 }
 
 type Server struct {

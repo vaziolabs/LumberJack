@@ -12,17 +12,26 @@ func GenerateID() string {
 }
 
 // StartEvent starts a new event or schedules it for the future
-func (n *Node) StartEvent(eventID string, plannedStart, plannedEnd *time.Time, metadata map[string]interface{}) error {
+func (n *Node) StartEvent(eventID string, userID string, plannedStart, plannedEnd *time.Time, metadata map[string]interface{}) error {
 	if n.Type != LeafNode {
 		return fmt.Errorf("cannot add event to non-leaf node")
+	}
+
+	// Check user permission
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
 	}
 
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
 	event := Event{
-		Metadata: metadata,
-		Status:   EventPending,
+		Metadata:   metadata,
+		Status:     EventPending,
+		CreatedBy:  userID,
+		CreatedAt:  time.Now(),
+		ModifiedBy: userID,
+		ModifiedAt: time.Now(),
 	}
 
 	// Handle category if provided in metadata
@@ -51,9 +60,14 @@ func (n *Node) StartEvent(eventID string, plannedStart, plannedEnd *time.Time, m
 }
 
 // EndEvent marks an event as finished
-func (n *Node) EndEvent(eventID string) error {
+func (n *Node) EndEvent(eventID string, userID string) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
+
+	// Check user permission
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
+	}
 
 	event, exists := n.Events[eventID]
 	if !exists {
@@ -67,14 +81,21 @@ func (n *Node) EndEvent(eventID string) error {
 	now := time.Now()
 	event.EndTime = &now
 	event.Status = EventFinished
+	event.ModifiedBy = userID
+	event.ModifiedAt = now
 	n.Events[eventID] = event
 	return nil
 }
 
 // AppendToEvent adds a new entry to an ongoing event
-func (n *Node) AppendToEvent(eventID string, content interface{}, metadata map[string]interface{}, userID string) error {
+func (n *Node) AppendToEvent(eventID string, userID string, content interface{}, metadata map[string]interface{}) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
+
+	// Check user permission
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
+	}
 
 	event, exists := n.Events[eventID]
 	if !exists {
@@ -97,26 +118,34 @@ func (n *Node) AppendToEvent(eventID string, content interface{}, metadata map[s
 	}
 
 	event.Entries = append(event.Entries, entry)
+	event.ModifiedBy = userID
+	event.ModifiedAt = entry.Timestamp
 	n.Events[eventID] = event
 	return nil
 }
 
 // PlanEvent plans a future event
-func (n *Node) PlanEvent(eventID string, plannedStart, plannedEnd *time.Time, metadata map[string]interface{}) error {
+func (n *Node) PlanEvent(eventID string, userID string, plannedStart, plannedEnd *time.Time, metadata map[string]interface{}) error {
 	if n.Type != LeafNode {
 		return fmt.Errorf("cannot plan event for non-leaf node")
+	}
+
+	// Check user permission
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
 	}
 
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
 	event := Event{
-		Metadata: metadata,
-		Status:   EventPending,
+		Metadata:  metadata,
+		Status:    EventPending,
+		CreatedBy: userID,
+		CreatedAt: time.Now(),
+		StartTime: plannedStart,
+		EndTime:   plannedEnd,
 	}
-
-	event.StartTime = plannedStart
-	event.EndTime = plannedEnd
 
 	n.PlannedEvents[eventID] = event
 	return nil
@@ -156,7 +185,12 @@ func (n *Node) AssignUser(user User, permission Permission) error {
 	return nil
 }
 
-func (n *Node) StartTimeTracking(userID string) *Entry {
+func (n *Node) StartTimeTracking(userID string) (*Entry, error) {
+	// Check user permission
+	if !n.CheckPermission(userID, WritePermission) {
+		return nil, fmt.Errorf("insufficient permissions")
+	}
+
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
@@ -167,23 +201,27 @@ func (n *Node) StartTimeTracking(userID string) *Entry {
 	}
 
 	n.Entries = append(n.Entries, entry)
-	return &entry
+	return &entry, nil
 }
 
 // StopTimeTracking stops tracking time for the node
-func (n *Node) StopTimeTracking(userID string) *Entry {
+func (n *Node) StopTimeTracking(userID string) (*Entry, error) {
+	// Check user permission
+	if !n.CheckPermission(userID, WritePermission) {
+		return nil, fmt.Errorf("insufficient permissions")
+	}
+
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
 	entry := Entry{
 		Timestamp: time.Now(),
 		UserID:    userID,
-		Content:   "end_time_entry",
+		Content:   "stop_time_entry",
 	}
 
 	n.Entries = append(n.Entries, entry)
-
-	return &entry
+	return &entry, nil
 }
 
 // CompareEvents compares the planned event to the actual event and reports differences
@@ -242,4 +280,66 @@ func (n *Node) CompareEvents(plannedEventID, actualEventID string) (bool, error)
 	}
 
 	return true, nil
+}
+
+// Add attachment to node
+func (n *Node) AddAttachment(attachment *Attachment, userID string) error {
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
+	}
+
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
+
+	if n.Attachments == nil {
+		n.Attachments = make(map[string]Attachment)
+	}
+	n.Attachments[attachment.ID] = *attachment
+	attachment.UploadedBy = userID
+	attachment.UploadedAt = time.Now()
+	return nil
+}
+
+// Add attachment to entry
+func (n *Node) AddEntryAttachment(eventID string, entryIndex int, attachment *Attachment, userID string) error {
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
+	}
+
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
+
+	event, exists := n.Events[eventID]
+	if !exists {
+		return fmt.Errorf("event not found: %s", eventID)
+	}
+
+	if entryIndex < 0 || entryIndex >= len(event.Entries) {
+		return fmt.Errorf("invalid entry index: %d", entryIndex)
+	}
+
+	event.Entries[entryIndex].Attachments = append(event.Entries[entryIndex].Attachments, *attachment)
+	n.Events[eventID] = event
+	return nil
+}
+
+// DeleteAttachment removes an attachment from a node
+func (n *Node) DeleteAttachment(attachmentID string, userID string) error {
+	if !n.CheckPermission(userID, WritePermission) {
+		return fmt.Errorf("insufficient permissions")
+	}
+
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
+
+	if n.Attachments == nil {
+		return fmt.Errorf("attachment not found: %s", attachmentID)
+	}
+
+	if _, exists := n.Attachments[attachmentID]; !exists {
+		return fmt.Errorf("attachment not found: %s", attachmentID)
+	}
+
+	delete(n.Attachments, attachmentID)
+	return nil
 }

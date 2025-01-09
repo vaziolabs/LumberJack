@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/vaziolabs/lumberjack/internal/core"
 	"github.com/vaziolabs/lumberjack/types"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/gorilla/mux"
 )
 
 // HTTP handler for assigning a user
@@ -18,12 +20,7 @@ func (server *Server) handleAssignUser(w http.ResponseWriter, r *http.Request) {
 	server.logger.Enter("AssignUser")
 	defer server.logger.Exit("AssignUser")
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		server.logger.Failure("User ID required")
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path       string          `json:"path"`
@@ -71,11 +68,7 @@ func (server *Server) handleAssignUser(w http.ResponseWriter, r *http.Request) {
 
 // HTTP handler for starting time tracking
 func (server *Server) handleStartTimeTracking(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path string `json:"path"`
@@ -105,11 +98,7 @@ func (server *Server) handleStartTimeTracking(w http.ResponseWriter, r *http.Req
 
 // HTTP handler for stopping time tracking
 func (server *Server) handleStopTimeTracking(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path string `json:"path"`
@@ -140,11 +129,7 @@ func (server *Server) handleStopTimeTracking(w http.ResponseWriter, r *http.Requ
 
 // HTTP handler for getting time tracking summary
 func (server *Server) handleGetTimeTracking(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path string `json:"path"`
@@ -167,11 +152,7 @@ func (server *Server) handleGetTimeTracking(w http.ResponseWriter, r *http.Reque
 
 // HTTP handler for starting an event
 func (server *Server) handleStartEvent(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path     string                 `json:"path"`
@@ -190,7 +171,7 @@ func (server *Server) handleStartEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := node.StartEvent(request.EventID, nil, nil, request.Metadata); err != nil {
+	if err := node.StartEvent(request.EventID, userID, nil, nil, request.Metadata); err != nil {
 		http.Error(w, fmt.Sprintf("Start event error: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -206,11 +187,7 @@ func (server *Server) handleStartEvent(w http.ResponseWriter, r *http.Request) {
 
 // HTTP handler for ending an event
 func (server *Server) handleEndEvent(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path    string `json:"path"`
@@ -228,7 +205,12 @@ func (server *Server) handleEndEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := node.EndEvent(request.EventID); err != nil {
+	if !node.CheckPermission(userID, core.WritePermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	if err := node.EndEvent(request.EventID, userID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -238,11 +220,7 @@ func (server *Server) handleEndEvent(w http.ResponseWriter, r *http.Request) {
 
 // HTTP handler for appending to an event
 func (server *Server) handleAppendToEvent(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	var request struct {
 		Path     string                 `json:"path"`
@@ -266,7 +244,16 @@ func (server *Server) handleAppendToEvent(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Printf("Appending to event %s", request.EventID)
-	if err := node.AppendToEvent(request.EventID, request.Content, request.Metadata, userID); err != nil {
+	entry := core.Entry{
+		Content:   request.Content,
+		Metadata:  request.Metadata,
+		UserID:    userID,
+		Timestamp: time.Now(),
+		CreatedBy: userID,
+		CreatedAt: time.Now(),
+	}
+
+	if err := node.AppendToEvent(request.EventID, userID, entry, request.Metadata); err != nil {
 		log.Printf("Failed to append to event: %v", err)
 		http.Error(w, fmt.Sprintf("Failed to append to event: %v", err), http.StatusInternalServerError)
 		return
@@ -370,6 +357,8 @@ func (server *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (server *Server) handlePlanEvent(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
+
 	var request struct {
 		Path      string                 `json:"path"`
 		EventID   string                 `json:"event_id"`
@@ -401,7 +390,7 @@ func (server *Server) handlePlanEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := node.PlanEvent(request.EventID, &startTime, &endTime, request.Metadata); err != nil {
+	if err := node.PlanEvent(request.EventID, userID, &startTime, &endTime, request.Metadata); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -449,34 +438,65 @@ func (server *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate JWT token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id":  foundUser.ID,
-		"username": foundUser.Username,
-		"exp":      time.Now().Add(server.jwtConfig.ExpiresIn).Unix(),
-	})
-
-	tokenString, err := token.SignedString(server.jwtConfig.SecretKey)
+	// Generate token pair
+	tokenPair, err := server.generateTokenPair(foundUser)
 	if err != nil {
-		server.logger.Failure("Failed to generate token: %v", err)
-		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		server.logger.Failure("Failed to generate tokens: %v", err)
+		http.Error(w, "Failed to generate tokens", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":    foundUser.ID,
-		"token": tokenString,
+		"id":            foundUser.ID,
+		"session_token": tokenPair.SessionToken,
+		"refresh_token": tokenPair.RefreshToken,
 	})
 	server.logger.Success("Login successful for user %s", foundUser.Username)
 }
 
-func (server *Server) handleGetUserProfile(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
+// Add new handler for token refresh
+func (server *Server) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
+
+	token, err := jwt.ParseWithClaims(request.RefreshToken, &TokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return server.jwtConfig.SecretKey, nil
+	})
+
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.Claims.(*TokenClaims)
+	if !ok || claims.TokenType != "refresh" {
+		http.Error(w, "Invalid token type", http.StatusUnauthorized)
+		return
+	}
+
+	// Generate new session token
+	user := &core.User{ID: claims.UserID, Username: claims.Username}
+	tokenPair, err := server.generateTokenPair(user)
+	if err != nil {
+		http.Error(w, "Failed to generate tokens", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"session_token": tokenPair.SessionToken,
+	})
+}
+
+func (server *Server) handleGetUserProfile(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
 
 	user, err := server.forest.GetUserProfile(userID)
 	if err != nil {
@@ -492,27 +512,6 @@ func (server *Server) handleGetUserProfile(w http.ResponseWriter, r *http.Reques
 		"phone":        user.Phone,
 		"permissions":  user.Permissions,
 	})
-}
-
-// UpdateSettings updates server configuration parameters
-func (server *Server) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
-	var settings types.ServerConfig
-	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Get user ID from context
-	userID := r.Context().Value("user_id").(string)
-
-	// Update server configuration
-	if err := server.UpdateSettings(userID, settings); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
 // HTTP handler for getting a specific tree
@@ -535,11 +534,7 @@ func (server *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 
 // HTTP handler for getting server settings
 func (server *Server) handleGetServerSettings(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	// Check if user has admin permission on root node
 	if !server.forest.CheckPermission(userID, core.AdminPermission) {
@@ -561,11 +556,7 @@ func (server *Server) handleGetServerSettings(w http.ResponseWriter, r *http.Req
 
 // HTTP handler for updating server settings
 func (server *Server) handleUpdateServerSettings(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
-		return
-	}
+	userID := r.Context().Value("user_id").(string)
 
 	// Check if user has admin permission on root node
 	if !server.forest.CheckPermission(userID, core.AdminPermission) {
@@ -579,11 +570,204 @@ func (server *Server) handleUpdateServerSettings(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Update only safe settings
-	server.config.Organization = settings.Organization
-	server.config.DashboardURL = settings.DashboardURL
-	server.config.Phone = settings.Phone
+	// Use the UpdateSettings helper instead of direct assignment
+	if err := server.UpdateSettings(userID, settings); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to update settings: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Save state after settings update
+	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+		http.Error(w, "Failed to save state", http.StatusInternalServerError)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// Add these structures for token management
+type TokenPair struct {
+	SessionToken string `json:"session_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+type TokenClaims struct {
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	TokenType string `json:"token_type"` // "session" or "refresh"
+	jwt.StandardClaims
+}
+
+// handleUploadAttachment handles file uploads and creates attachments
+func (server *Server) handleUploadAttachment(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
+
+	// Parse multipart form with 10MB max memory
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "File too large", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Invalid file upload", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	path := r.FormValue("path")
+	node, err := server.forest.GetNode(path)
+	if err != nil {
+		http.Error(w, "Node not found", http.StatusNotFound)
+		return
+	}
+
+	if !node.CheckPermission(userID, core.WritePermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	attachment := &core.Attachment{
+		ID:         fmt.Sprintf("att-%d", time.Now().UnixNano()),
+		Name:       header.Filename,
+		Type:       header.Header.Get("Content-Type"),
+		Size:       header.Size,
+		UploadedBy: userID,
+		UploadedAt: time.Now(),
+	}
+
+	if err := node.AddAttachment(attachment, userID); err != nil {
+		http.Error(w, "Failed to add attachment to node", http.StatusInternalServerError)
+		return
+	}
+
+	// Save state after attachment upload
+	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+		http.Error(w, "Failed to save state", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(attachment)
+}
+
+// handleGetAttachment retrieves an attachment
+func (server *Server) handleGetAttachment(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
+	vars := mux.Vars(r)
+	attachmentID := vars["id"]
+	path := r.URL.Query().Get("path")
+
+	node, err := server.forest.GetNode(path)
+	if err != nil {
+		http.Error(w, "Node not found", http.StatusNotFound)
+		return
+	}
+
+	if !node.CheckPermission(userID, core.ReadPermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	attachment, err := node.GetAttachment(attachmentID)
+	if err != nil {
+		http.Error(w, "Attachment not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", attachment.Type)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", attachment.Name))
+	w.Write(attachment.Data)
+}
+
+// handleAddEntryAttachment adds an attachment to a specific event entry
+func (server *Server) handleAddEntryAttachment(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
+	vars := mux.Vars(r)
+	eventID := vars["eventId"]
+	entryIndex := vars["entryIndex"]
+
+	path := r.URL.Query().Get("path")
+	node, err := server.forest.GetNode(path)
+	if err != nil {
+		http.Error(w, "Node not found", http.StatusNotFound)
+		return
+	}
+
+	if !node.CheckPermission(userID, core.WritePermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	// Parse multipart form
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "File too large", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Invalid file upload", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	index, err := strconv.Atoi(entryIndex)
+	if err != nil {
+		http.Error(w, "Invalid entry index", http.StatusBadRequest)
+		return
+	}
+
+	attachment, err := core.NewAttachmentStore().Store(file, header, userID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to store attachment: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := node.AddEntryAttachment(eventID, index, attachment, userID); err != nil {
+		http.Error(w, "Failed to add attachment to entry", http.StatusInternalServerError)
+		return
+	}
+
+	// Save state
+	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+		http.Error(w, "Failed to save state", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(attachment)
+}
+
+// handleDeleteAttachment deletes an attachment
+func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value("user_id").(string)
+	vars := mux.Vars(r)
+	attachmentID := vars["id"]
+	path := r.URL.Query().Get("path")
+
+	node, err := server.forest.GetNode(path)
+	if err != nil {
+		http.Error(w, "Node not found", http.StatusNotFound)
+		return
+	}
+
+	if !node.CheckPermission(userID, core.WritePermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	if err := node.DeleteAttachment(attachmentID, userID); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to delete attachment: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Save state after deletion
+	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+		http.Error(w, "Failed to save state", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

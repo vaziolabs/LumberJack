@@ -33,14 +33,18 @@ type User struct {
 
 // Event represents an event with start/end times and entries
 type Event struct {
-	StartTime *time.Time             `json:"start_time,omitempty"`
-	EndTime   *time.Time             `json:"end_time,omitempty"`
-	Entries   []Entry                `json:"entries"`
-	Metadata  map[string]interface{} `json:"metadata"`
-	Status    EventStatus            `json:"status"`
-	Category  string                 `json:"category,omitempty"`
-	Frequency string                 `json:"frequency,omitempty"`
-	Pattern   string                 `json:"pattern,omitempty"`
+	StartTime  *time.Time             `json:"start_time,omitempty"`
+	EndTime    *time.Time             `json:"end_time,omitempty"`
+	Entries    []Entry                `json:"entries"`
+	Metadata   map[string]interface{} `json:"metadata"`
+	Status     EventStatus            `json:"status"`
+	Category   string                 `json:"category,omitempty"`
+	Frequency  string                 `json:"frequency,omitempty"`
+	Pattern    string                 `json:"pattern,omitempty"`
+	CreatedBy  string                 `json:"created_by,omitempty"`
+	CreatedAt  time.Time              `json:"created_at,omitempty"`
+	ModifiedBy string                 `json:"modified_by,omitempty"`
+	ModifiedAt time.Time              `json:"modified_at,omitempty"`
 }
 
 // EventSummary provides a summary of the event's timing and status
@@ -57,22 +61,44 @@ type NodeType int
 
 // Entry represents an entry in the node
 type Entry struct {
-	Content   interface{}            `json:"content"`
-	Metadata  map[string]interface{} `json:"metadata"`
-	UserID    string                 `json:"user_id"`
-	Timestamp time.Time              `json:"timestamp"`
+	Content     interface{}            `json:"content"`
+	Metadata    map[string]interface{} `json:"metadata"`
+	UserID      string                 `json:"user_id"`
+	Timestamp   time.Time              `json:"timestamp"`
+	Attachments []Attachment           `json:"attachments,omitempty"`
+	CreatedBy   string                 `json:"created_by,omitempty"`
+	CreatedAt   time.Time              `json:"created_at,omitempty"`
+	ModifiedBy  string                 `json:"modified_by,omitempty"`
+	ModifiedAt  time.Time              `json:"modified_at,omitempty"`
 }
 
 // Node represents a node in the tree-forest
 type Node struct {
-	ID            string            `json:"id"`
-	Type          NodeType          `json:"type"`
-	Name          string            `json:"name"`
-	Parents       map[string]string `json:"parents"`
-	Children      map[string]*Node  `json:"children"`
-	Events        map[string]Event  `json:"events"`
-	PlannedEvents map[string]Event  `json:"planned_events"`
-	Users         []User            `json:"users"`
-	Entries       []Entry           `json:"entries"`
-	mutex         sync.RWMutex      `json:"-"`
+	ID            string                `json:"id"`
+	Type          NodeType              `json:"type"`
+	Name          string                `json:"name"`
+	Parents       map[string]string     `json:"parents"`
+	Children      map[string]*Node      `json:"children"`
+	Events        map[string]Event      `json:"events"`
+	PlannedEvents map[string]Event      `json:"planned_events"`
+	Users         []User                `json:"users"`
+	Entries       []Entry               `json:"entries"`
+	Attachments   map[string]Attachment `json:"attachments,omitempty"`
+	mutex         sync.RWMutex          `json:"-"`
+	CreatedBy     string                `json:"created_by,omitempty"`
+	CreatedAt     time.Time             `json:"created_at,omitempty"`
+	ModifiedBy    string                `json:"modified_by,omitempty"`
+	ModifiedAt    time.Time             `json:"modified_at,omitempty"`
+}
+
+// Add to existing types
+type Attachment struct {
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"` // mime type
+	Size       int64     `json:"size"`
+	Hash       string    `json:"hash"` // sha256 hash
+	Data       []byte    `json:"data"` // actual file data stored in state file
+	UploadedBy string    `json:"uploaded_by"`
+	UploadedAt time.Time `json:"uploaded_at"`
 }
