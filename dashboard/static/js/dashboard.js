@@ -1,5 +1,3 @@
-console.log('Dashboard.js loaded');
-
 async function loadUsers() {
     try {
         const response = await fetch('/api/users', {
@@ -267,7 +265,7 @@ function renderLogs(data) {
         console.error('Logs list element not found');
         return;
     }
-    
+
     // Handle empty or null data
     const logs = data || [];
     
@@ -486,7 +484,7 @@ async function loadForest() {
 
 async function loadLogs() {
     try {
-        const response = await fetch('/api/logs', {
+        const response = await fetchWithAuth('/api/logs', {
             headers: {
                 'Authorization': `Bearer ${getCookie('session_token')}`
             }
@@ -495,11 +493,13 @@ async function loadLogs() {
         if (!response.ok) {
             throw new Error('Failed to load logs');
         }
-        
+
         const data = await response.json();
+        console.log('Logs data:', data);
         renderLogs(data);
     } catch (error) {
         console.error('Error loading logs:', error);
+        renderLogs([]); // Render empty state on error
     }
 }
 
@@ -537,11 +537,8 @@ document.getElementById('log-search')?.addEventListener('input', (e) => {
 });
 
 // Add click handler for the logs tab
-document.querySelector('a[data-view="logs"]').addEventListener('click', async () => {
-    // Hide all views
+document.querySelector('a[data-view="logs"]')?.addEventListener('click', async () => {
     document.querySelectorAll('.view').forEach(view => view.style.display = 'none');
-    // Show logs view
     document.getElementById('logs-view').style.display = 'block';
-    // Load logs data
-    await loadViewData('logs');
+    await loadLogs();
 });

@@ -776,48 +776,99 @@ func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Requ
 }
 
 func (server *Server) readLogFile(path string, level string) ([]types.LogEntry, error) {
+	server.logger.Info("Reading log file: %s", path)
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open log file: %v", err)
 	}
 	defer file.Close()
 
 	var logs []types.LogEntry
 	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
 
-		// Parse log line into structured format
-		// Assuming format: [TIMESTAMP] LEVEL: MESSAGE
-		parts := strings.SplitN(line, " ", 3)
-		if len(parts) < 3 {
+	// Map of symbols to log levels
+	levelMap := map[string]string{
+		"ℹ": "INFO",
+		"✓": "SUCCESS",
+		"✗": "FAILURE",
+		"🔍": "DEBUG",
+		"📝": "NOTICE",
+		"⚠": "WARNING",
+		"❌": "ERROR",
+		"🔥": "CRITICAL",
+		"🚨": "ALERT",
+		"💀": "EMERGENCY",
+	}
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
 			continue
 		}
 
-		// Parse timestamp (remove brackets)
-		timestamp, err := time.Parse("2006-01-02T15:04:05.000Z", strings.Trim(parts[0], "[]"))
+		// Parse timestamp (first 19 characters: "2025/01/09 13:02:06")
+		if len(line) < 19 {
+			continue
+		}
+
+		timestamp, err := time.Parse("2006/01/02 15:04:05", line[:19])
 		if err != nil {
 			continue
 		}
 
-		// Parse level (remove colon)
-		level := strings.TrimSuffix(parts[1], ":")
+		// Remove timestamp and get remainder
+		remainder := strings.TrimSpace(line[19:])
 
-		entry := types.LogEntry{
-			Timestamp: timestamp,
-			Level:     level,
-			Message:   parts[2],
+		// Remove tree characters and spaces
+		remainder = strings.TrimLeft(remainder, "│└┌─ ")
+
+		var logLevel, message string
+
+		// Check for BEGIN/END messages
+		if strings.HasPrefix(remainder, "BEGIN:") {
+			logLevel = "INFO"
+			message = "Started: " + strings.TrimSpace(strings.TrimPrefix(remainder, "BEGIN:"))
+		} else if strings.HasPrefix(remainder, "END:") {
+			logLevel = "INFO"
+			message = "Completed: " + strings.TrimSpace(strings.TrimPrefix(remainder, "END:"))
+		} else {
+			// Check for level symbols
+			found := false
+			for symbol, level := range levelMap {
+				if strings.HasPrefix(remainder, symbol) {
+					logLevel = level
+					message = strings.TrimSpace(strings.TrimPrefix(remainder, symbol))
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				logLevel = "INFO"
+				message = remainder
+			}
 		}
 
 		// Filter by level if specified
-		if level != "" && !strings.EqualFold(level, entry.Level) {
+		if level != "" && !strings.EqualFold(level, logLevel) {
 			continue
+		}
+
+		entry := types.LogEntry{
+			Timestamp: timestamp,
+			Level:     logLevel,
+			Message:   message,
 		}
 
 		logs = append(logs, entry)
 	}
 
-	return logs, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading log file: %v", err)
+	}
+
+	server.logger.Info("Found %d log entries", len(logs))
+	return logs, nil
 }
 
 func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
