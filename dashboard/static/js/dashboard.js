@@ -1,8 +1,11 @@
+console.log('Dashboard.js loaded');
+
 async function loadUsers() {
     try {
         const response = await fetch('/api/users', {
             headers: {
-                'Authorization': `Bearer ${getCookie('auth_token')}`
+                'Authorization': `Bearer ${getCookie('auth_token')}`,
+                'X-User-ID': getCookie('user_id')
             }
         });
         
@@ -16,7 +19,7 @@ async function loadUsers() {
     } catch (error) {
         console.error('Error loading users:', error.message);
         if (error.message.includes('No authentication token')) {
-            window.location.href = '/';  // Redirect to login
+            window.location.href = '/';
         }
     }
 }
@@ -68,7 +71,8 @@ document.getElementById('user-form').addEventListener('submit', async (e) => {
         const response = await fetch('/api/users', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${getCookie('auth_token')}`
             },
             body: JSON.stringify(formData)
         });
@@ -100,28 +104,104 @@ document.querySelectorAll('.sidebar a').forEach(link => {
 });
 
 // Modify the initial load section
-async function checkAuthAndLoadData() {
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOMContentLoaded triggered');
     const token = getCookie('auth_token');
+    console.log('Token found:', !!token);  // Log if token exists, not the actual token
+    
     if (!token) {
-        window.location.href = '/';  // Redirect to login if no token
+        console.log('No token found, redirecting to login');
+        // window.location.href = '/';
         return;
     }
-    
-    await loadViewData('tree');
-    await loadUsers();
-}
+
+    // Setup profile menu functionality
+    const userProfile = document.getElementById('user-profile');
+    const profileMenu = document.getElementById('profile-menu');
+    const serverSettings = document.getElementById('server-settings');
+    const logoutButton = document.getElementById('logout');
+
+    userProfile.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profileMenu.classList.toggle('active');
+    });
+
+    document.addEventListener('click', () => {
+        profileMenu.classList.remove('active');
+    });
+
+    serverSettings.addEventListener('click', async (e) => {
+        e.preventDefault();
+        showServerSettingsModal();
+    });
+
+    logoutButton.addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            await fetch('/api/logout', {
+                method: 'POST',
+                headers: {
+                    'X-User-ID': getCookie('user_id'),
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        } catch (error) {
+            console.error('Error during logout:', error);
+        } finally {
+            document.cookie = 'auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+            window.location.href = '/';
+        }
+    });
+
+    try {
+        console.log('Fetching user profile');
+        const profileResponse = await fetch('/api/user/profile', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-User-ID': getCookie('user_id')
+            }
+        });
+        
+        console.log('Profile response status:', profileResponse.status);
+        
+        if (!profileResponse.ok) {
+            throw new Error('Failed to load user profile');
+        }
+        
+        const userData = await profileResponse.json();
+        console.log('User data received:', userData);
+        
+        updateUserProfile(userData.username);
+        
+        // Then load view data
+        await loadViewData('forest');
+        await loadUsers();
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        console.log('Stack trace:', error.stack);
+        window.location.href = '/';
+    }
+});
 
 async function loadViewData(viewName) {
     try {
         const token = getCookie('auth_token');
-        const response = await fetch(`/api/${viewName}`, {
+        const endpoints = {
+            forest: '/api/forest',
+            tree: '/api/tree',
+            logs: '/api/events',
+            users: '/api/users'
+        };
+
+        const response = await fetch(endpoints[viewName], {
             headers: {
-                'Authorization': `Bearer ${token}`
+                'X-User-ID': getCookie('user_id'),
+                'Authorization': `Bearer ${token}`,
             }
         });
         
         if (response.status === 401) {
-            window.location.href = '/';  // Redirect to login if unauthorized
+            window.location.href = '/';
             return;
         }
         
@@ -239,64 +319,12 @@ const Permission = {
 };
 
 function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
+    console.log('Cookie name:', name);
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    console.log('Cookie match:', match);
+    if (match) return match[2];
+    return null;
 }
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', checkAuthAndLoadData);
-
-// Profile menu functionality
-document.addEventListener('DOMContentLoaded', () => {
-    const userProfile = document.getElementById('user-profile');
-    const profileMenu = document.getElementById('profile-menu');
-    const serverSettings = document.getElementById('server-settings');
-    const logoutButton = document.getElementById('logout');
-
-    // Toggle menu on profile click
-    userProfile.addEventListener('click', (e) => {
-        e.stopPropagation();
-        profileMenu.classList.toggle('active');
-    });
-
-    // Close menu when clicking outside
-    document.addEventListener('click', () => {
-        profileMenu.classList.remove('active');
-    });
-
-    // Server Settings handler
-    serverSettings.addEventListener('click', async (e) => {
-        e.preventDefault();
-        // TODO: Implement server settings modal
-        showServerSettingsModal();
-    });
-
-    // Logout handler
-    logoutButton.addEventListener('click', async (e) => {
-        e.preventDefault();
-        try {
-            const response = await fetch('/api/logout', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${getCookie('auth_token')}`
-                }
-            });
-            
-            // Clear auth token regardless of response
-            document.cookie = 'auth_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-            window.location.href = '/';
-            
-        } catch (error) {
-            console.error('Error during logout:', error);
-            // Force redirect to login page even if logout fails
-            window.location.href = '/';
-        }
-    });
-
-    // Load user profile on page load
-    loadUserProfile();
-});
 
 // Add Server Settings Modal functionality
 function showServerSettingsModal() {
@@ -347,7 +375,7 @@ async function handleServerSettingsSave(e) {
             logLevel: document.getElementById('log-level').value
         };
 
-        const response = await fetch('/api/settings', {
+        const response = await fetch('/api/settings/update', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -368,9 +396,10 @@ async function handleServerSettingsSave(e) {
 
 async function loadUserProfile() {
     try {
-        const response = await fetch('/api/user/profile', {
+        const response = await fetch('/api/users/profile', {
             headers: {
-                'Authorization': `Bearer ${getCookie('auth_token')}`
+                'Authorization': `Bearer ${getCookie('auth_token')}`,
+                'X-User-ID': getCookie('user_id')
             }
         });
         
@@ -390,16 +419,12 @@ async function loadUserProfile() {
 }
 
 function updateUserProfile(username) {
-    const userInitials = document.getElementById('user-initials');
+    const organizationDisplay = document.getElementById('organization-display');
     const usernameDisplay = document.getElementById('username-display');
     
     if (username) {
-        const initials = username
-            .split(' ')
-            .map(word => word[0])
-            .join('')
-            .toUpperCase();
-        userInitials.textContent = initials;
+        const initials = "org"
+        organizationDisplay.textContent = initials;
         usernameDisplay.textContent = username;
     }
 }

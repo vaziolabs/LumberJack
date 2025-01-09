@@ -18,7 +18,7 @@ func NewServer(config types.ServerConfig, adminUser types.User) (*Server, error)
 	server := &Server{
 		forest: core.NewForest("forest"),
 		jwtConfig: JWTConfig{
-			SecretKey: []byte("your-secret-key"),
+			SecretKey: []byte("your-secret-key"), // TODO: Add certificate management to handle this securely
 			ExpiresIn: 24 * time.Hour,
 		},
 		logger: types.NewLogger(),

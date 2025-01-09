@@ -17,6 +17,7 @@ func (s *DashboardServer) handleDashboard(w http.ResponseWriter, r *http.Request
 func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) {
 	req, _ := http.NewRequest("GET", s.apiEndpoint+"/forest/tree", nil)
 	req.Header.Set("Authorization", r.Header.Get("Authorization"))
+	req.Header.Set("X-User-ID", r.Header.Get("X-User-ID"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -47,20 +48,21 @@ func (s *DashboardServer) handleGetTree(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *DashboardServer) handleGetEvents(w http.ResponseWriter, r *http.Request) {
-	resp, err := http.Get(s.apiEndpoint + "/events")
+	// Forward request to API server
+	req, _ := http.NewRequest("POST", s.apiEndpoint+"/events", r.Body)
+	req.Header.Set("Authorization", r.Header.Get("Authorization"))
+	req.Header.Set("X-User-ID", r.Header.Get("X-User-ID"))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	var events []EntryData
-	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	json.NewEncoder(w).Encode(events)
+	w.Header().Set("Content-Type", "application/json")
+	io.Copy(w, resp.Body)
 }
 
 func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) {
@@ -70,19 +72,15 @@ func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *DashboardServer) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	// Get auth token from cookie
 	cookie, err := r.Cookie("auth_token")
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "No authentication token found",
-		})
+		http.Error(w, "No authentication token found", http.StatusUnauthorized)
 		return
 	}
 
-	// Make request to API server with auth token
 	req, _ := http.NewRequest("GET", s.apiEndpoint+"/users", nil)
 	req.Header.Set("Authorization", "Bearer "+cookie.Value)
+	req.Header.Set("X-User-ID", r.Header.Get("X-User-ID"))
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -176,7 +174,9 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// Parse the API response
 	var loginResponse struct {
-		Token string `json:"token"`
+		Status string `json:"status"`
+		Token  string `json:"token"`
+		ID     string `json:"id"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&loginResponse); err != nil {
 		s.logger.Error("Invalid response from server: %v", err)
@@ -184,18 +184,37 @@ func (s *DashboardServer) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set the auth cookie
+	s.logger.Info("Setting cookies for user: %s", credentials.Username)
+
+	// Set cookies
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    loginResponse.Token,
 		Path:     "/",
-		HttpOnly: true,
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   86400,
 	})
 
-	// Return success response
-	s.logger.Success("%s Login successful", credentials.Username)
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "user_id",
+		Value:    loginResponse.ID,
+		Path:     "/",
+		HttpOnly: false,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   86400,
+	})
+
+	// Set response headers and send response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":   "success",
+		"token":    loginResponse.Token,
+		"id":       loginResponse.ID,
+		"username": credentials.Username,
+	})
 }
 
 func (s *DashboardServer) authMiddleware(next http.Handler) http.Handler {
@@ -242,9 +261,9 @@ func (s *DashboardServer) handleLogout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *DashboardServer) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
-	// Forward settings update to API server
 	req, _ := http.NewRequest("POST", s.apiEndpoint+"/settings/update", r.Body)
 	req.Header.Set("Authorization", r.Header.Get("Authorization"))
+	req.Header.Set("X-User-ID", r.Header.Get("X-User-ID"))
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}

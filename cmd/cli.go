@@ -139,11 +139,13 @@ Example:
 Use 'list running' to see available server IDs.
 Use -d flag to kill only the dashboard.
 Use --all to kill all running servers.
+Use --force to skip confirmation prompt.
 
 Example:
     lumberjack kill abc123xyz
     lumberjack kill abc123xyz -d
-    lumberjack kill --all`,
+    lumberjack kill --all
+    lumberjack kill --all --force`,
 		Run: killServer,
 	}
 	logsCmd = &cobra.Command{
@@ -192,6 +194,7 @@ func init() {
 
 	killCmd.Flags().BoolVarP(&dashboardSet, "dashboard", "d", false, "Kill only the dashboard")
 	killCmd.Flags().BoolVar(&killAll, "all", false, "Kill all running servers")
+	killCmd.Flags().BoolVarP(&forceDelete, "force", "f", false, "Force kill without confirmation")
 
 	deleteCmd.Flags().BoolVar(&deleteAll, "all", false, "Delete all configurations")
 	deleteCmd.Flags().BoolVar(&forceDelete, "force", false, "Force delete without confirmation")
@@ -261,6 +264,8 @@ func runServer(cmd *cobra.Command, args []string) {
 	serverConfig := types.ServerConfig{
 		ServerPort:   config.Port,
 		DatabaseName: dbName,
+		DatabasePath: defaultLibDir,
+		LogDirectory: defaultLogDir,
 	}
 
 	server, err := internal.LoadServer(serverConfig)
