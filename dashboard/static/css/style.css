@@ -328,3 +328,54 @@ body {
     font-weight: bold;
     margin-right: 1rem;
 }
+
+.logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.logs-controls {
+    display: flex;
+    gap: 1rem;
+}
+
+.logs-list {
+    height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+    font-family: monospace;
+}
+
+.log-entry.debug { color: #5f4e71; }
+.log-entry.info { color: #4171a5; }
+.log-entry.notice { color: #5d812a; }
+.log-entry.warn { color: #c58722; }
+.log-entry.error { color: #a45c4a; }
+.log-entry.critical { color: #ad3a26; }
+.log-entry.alert { color: #942828; }
+.log-entry.emergency { color: #ad0011; }
+
+.log-timestamp {
+    margin-right: 1rem;
+    color: #666;
+}
+
+.log-level {
+    display: inline-block;
+    min-width: 60px;
+    margin-right: 1rem;
+    font-weight: bold;
+}
+
+.log-trace {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+}

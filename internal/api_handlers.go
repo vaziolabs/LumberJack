@@ -775,75 +775,6 @@ func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusOK)
 }
 
-// Add this new handler function
-func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value("user_id").(string)
-
-	if !server.forest.CheckPermission(userID, core.AdminPermission) {
-		http.Error(w, "Insufficient permissions", http.StatusForbidden)
-		return
-	}
-
-	level := r.URL.Query().Get("level")
-
-	processes, err := server.getRunningProcesses()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get processes: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	var logPath string
-	for _, proc := range processes {
-		if proc.DbName == server.config.DatabaseName {
-			logPath = filepath.Join(proc.LogDirectory, fmt.Sprintf("lumberjack-%s.log", proc.ID))
-			break
-		}
-	}
-
-	if logPath == "" {
-		http.Error(w, "No active process found for this database", http.StatusNotFound)
-		return
-	}
-
-	logs, err := server.readLogFile(logPath, level)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to read logs: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
-}
-
-// Add helper method to get running processes
-func (server *Server) getRunningProcesses() ([]types.ProcessInfo, error) {
-	liveFiles, err := os.ReadDir("/etc/lumberjack/live")
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []types.ProcessInfo{}, nil
-		}
-		return nil, err
-	}
-
-	var processes []types.ProcessInfo
-	for _, file := range liveFiles {
-		data, err := os.ReadFile(filepath.Join(server.config.LogDirectory, file.Name()+".dat"))
-		if err != nil {
-			continue
-		}
-
-		var proc types.ProcessInfo
-		if err := json.Unmarshal(data, &proc); err != nil {
-			continue
-		}
-
-		processes = append(processes, proc)
-	}
-
-	return processes, nil
-}
-
-// Add this helper method to the Server struct
 func (server *Server) readLogFile(path string, level string) ([]types.LogEntry, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -855,14 +786,31 @@ func (server *Server) readLogFile(path string, level string) ([]types.LogEntry, 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
+
+		// Parse log line into structured format
+		// Assuming format: [TIMESTAMP] LEVEL: MESSAGE
+		parts := strings.SplitN(line, " ", 3)
+		if len(parts) < 3 {
+			continue
+		}
+
+		// Parse timestamp (remove brackets)
+		timestamp, err := time.Parse("2006-01-02T15:04:05.000Z", strings.Trim(parts[0], "[]"))
+		if err != nil {
+			continue
+		}
+
+		// Parse level (remove colon)
+		level := strings.TrimSuffix(parts[1], ":")
+
 		entry := types.LogEntry{
-			Timestamp: time.Now(), // You'll need to parse this from the log line
-			Message:   line,
-			Level:     "INFO", // You'll need to parse this from the log line
+			Timestamp: timestamp,
+			Level:     level,
+			Message:   parts[2],
 		}
 
 		// Filter by level if specified
-		if level != "" && strings.ToUpper(level) != entry.Level {
+		if level != "" && !strings.EqualFold(level, entry.Level) {
 			continue
 		}
 
@@ -870,4 +818,34 @@ func (server *Server) readLogFile(path string, level string) ([]types.LogEntry, 
 	}
 
 	return logs, scanner.Err()
+}
+
+func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
+	server.logger.Enter("handleGetLogs")
+	defer server.logger.Exit("handleGetLogs")
+
+	userID := r.Context().Value("user_id").(string)
+
+	if !server.forest.CheckPermission(userID, core.AdminPermission) {
+		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+		return
+	}
+
+	server.logger.Info("Getting logs for user %s", userID)
+
+	level := r.URL.Query().Get("level")
+
+	// Use the process ID from server config
+	logPath := filepath.Join(server.config.LogDirectory, fmt.Sprintf("%s.log", server.config.ProcessInfo.ID))
+
+	logs, err := server.readLogFile(logPath, level)
+	if err != nil {
+		server.logger.Failure("Failed to read logs: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(logs)
 }

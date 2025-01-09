@@ -177,8 +177,9 @@ async function loadViewData(viewName) {
         const endpoints = {
             forest: '/api/forest',
             tree: '/api/tree',
-            logs: '/api/events',
-            users: '/api/users'
+            logs: '/api/logs',
+            users: '/api/users',
+            settings: '/api/settings'
         };
 
         const response = await fetch(endpoints[viewName], {
@@ -262,16 +263,22 @@ function renderLogs(data) {
     const logsView = document.getElementById('logs-view');
     const logsList = document.getElementById('logs-list');
     
-    if (!logsList) return;
+    if (!logsList) {
+        console.error('Logs list element not found');
+        return;
+    }
     
-    logsList.innerHTML = data.map(log => `
+    // Handle empty or null data
+    const logs = data || [];
+    
+    logsList.innerHTML = logs.length ? logs.map(log => `
         <div class="log-entry ${log.level.toLowerCase()}">
             <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
             <span class="log-level">${log.level}</span>
             <span class="log-message">${log.message}</span>
             ${log.trace ? `<pre class="log-trace">${log.trace}</pre>` : ''}
         </div>
-    `).join('');
+    `).join('') : '<div class="no-logs">No logs found</div>';
 }
 
 // Add Permission enum to match Go constants
@@ -527,4 +534,14 @@ document.getElementById('log-search')?.addEventListener('input', (e) => {
         const text = entry.textContent.toLowerCase();
         entry.style.display = text.includes(searchTerm) ? 'block' : 'none';
     });
+});
+
+// Add click handler for the logs tab
+document.querySelector('a[data-view="logs"]').addEventListener('click', async () => {
+    // Hide all views
+    document.querySelectorAll('.view').forEach(view => view.style.display = 'none');
+    // Show logs view
+    document.getElementById('logs-view').style.display = 'block';
+    // Load logs data
+    await loadViewData('logs');
 });

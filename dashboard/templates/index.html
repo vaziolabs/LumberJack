@@ -45,7 +45,27 @@
         <main class="content">
             <div id="forest-view" class="view"></div>
             <div id="tree-view" class="view"></div>
-            <div id="logs-view" class="view"></div>
+            <div id="logs-view" class="view">
+                <div class="logs-header">
+                    <h2>System Logs</h2>
+                    <div class="logs-controls">
+                        <select id="log-level">
+                            <option value="all">All Levels</option>
+                            <option value="debug">Debug</option>
+                            <option value="info">Info</option>
+                            <option value="notice">Notice</option>
+                            <option value="warn">Warning</option>
+                            <option value="error">Error</option>
+                            <option value="critical">Critical</option>
+                            <option value="alert">Alert</option>
+                            <option value="emergency">Emergency</option>
+
+                        </select>
+                        <input type="text" id="log-search" placeholder="Search logs...">
+                    </div>
+                </div>
+                <div id="logs-list" class="logs-list"></div>
+            </div>
             <div id="users-view" class="view">
                 <div class="users-header">
                     <h2>User Management</h2>

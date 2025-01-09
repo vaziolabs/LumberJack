@@ -36,7 +36,7 @@ func spawnServer(config types.DBConfig, withDashboard bool) error {
 	}
 
 	// Create log file in configured directory
-	logPath := filepath.Join(logDirectory, fmt.Sprintf("lumberjack-%s.log", id))
+	logPath := filepath.Join(logDirectory, fmt.Sprintf("%s.log", id))
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %v", err)

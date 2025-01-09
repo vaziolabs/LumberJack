@@ -60,26 +60,46 @@ func (s *DashboardServer) handleGetEvents(w http.ResponseWriter, r *http.Request
 func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("session_token")
 	if err != nil {
-		http.Error(w, "No authentication token found", http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
 		return
 	}
 
+	// Create new request to API server
 	req, _ := http.NewRequest("GET", s.apiEndpoint+"/logs", nil)
 	req.Header.Set("Authorization", "Bearer "+cookie.Value)
+	req.Header.Set("Content-Type", "application/json")
 
-	// Forward query parameters for filtering
+	// Forward any query parameters (for filtering)
 	req.URL.RawQuery = r.URL.RawQuery
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, "Error connecting to API server: "+err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
 		return
 	}
 	defer resp.Body.Close()
 
+	// Check if the response status is OK
+	if resp.StatusCode != http.StatusOK {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+
+	// Read and validate the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil || !json.Valid(body) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
+		return
+	}
+
+	// Forward the response
 	w.Header().Set("Content-Type", "application/json")
-	io.Copy(w, resp.Body)
+	w.Write(body)
 }
 
 func (s *DashboardServer) handleGetUsers(w http.ResponseWriter, r *http.Request) {

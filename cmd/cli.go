@@ -261,11 +261,35 @@ func runServer(cmd *cobra.Command, args []string) {
 	}
 
 	config := loadConfig(dbName)
+
+	// Get the process info first
+	processes, err := getRunningServers()
+	if err != nil {
+		fmt.Printf("Error getting process info: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Find the process for this database
+	var processInfo *types.ProcessInfo
+	for _, p := range processes {
+		if p.DbName == dbName {
+			processInfo = &p
+			break
+		}
+	}
+
+	if processInfo == nil {
+		fmt.Printf("No process info found for database %s\n", dbName)
+		os.Exit(1)
+	}
+
 	serverConfig := types.ServerConfig{
-		ServerPort:   config.Port,
-		DatabaseName: dbName,
-		DatabasePath: defaultLibDir,
-		LogDirectory: defaultLogDir,
+		ServerPort:    config.Port,
+		DatabaseName:  dbName,
+		DatabasePath:  defaultLibDir,
+		LogDirectory:  processInfo.LogDirectory,
+		DashboardPort: processInfo.DashboardPort,
+		ProcessInfo:   *processInfo,
 	}
 
 	server, err := internal.LoadServer(serverConfig)

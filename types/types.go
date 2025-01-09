@@ -34,15 +34,16 @@ type User struct {
 }
 
 type ServerConfig struct {
-	DatabaseName  string `json:"database_name"`
-	DatabasePath  string `json:"database_path"`
-	LogDirectory  string `json:"log_directory"`
-	Organization  string `json:"organization"`
-	ServerURL     string `json:"server_url"`
-	ServerPort    string `json:"server_port"`
-	DashboardURL  string `json:"dashboard_url,omitempty"`
-	DashboardPort string `json:"dashboard_port"`
-	Phone         string `json:"phone,omitempty"`
+	DatabaseName  string      `json:"database_name"`
+	DatabasePath  string      `json:"database_path"`
+	LogDirectory  string      `json:"log_directory"`
+	Organization  string      `json:"organization"`
+	ServerURL     string      `json:"server_url"`
+	ServerPort    string      `json:"server_port"`
+	DashboardURL  string      `json:"dashboard_url,omitempty"`
+	DashboardPort string      `json:"dashboard_port"`
+	Phone         string      `json:"phone,omitempty"`
+	ProcessInfo   ProcessInfo `json:"process_info"`
 }
 
 type LogEntry struct {
