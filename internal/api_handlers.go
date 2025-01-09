@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/vaziolabs/lumberjack/internal/core"
@@ -775,128 +773,53 @@ func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusOK)
 }
 
-func (server *Server) readLogFile(path string, level string) ([]types.LogEntry, error) {
-	server.logger.Info("Reading log file: %s", path)
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %v", err)
-	}
-	defer file.Close()
-
-	var logs []types.LogEntry
-	scanner := bufio.NewScanner(file)
-
-	// Map of symbols to log levels
-	levelMap := map[string]string{
-		"ℹ": "INFO",
-		"✓": "SUCCESS",
-		"✗": "FAILURE",
-		"🔍": "DEBUG",
-		"📝": "NOTICE",
-		"⚠": "WARNING",
-		"❌": "ERROR",
-		"🔥": "CRITICAL",
-		"🚨": "ALERT",
-		"💀": "EMERGENCY",
-	}
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		// Parse timestamp (first 19 characters: "2025/01/09 13:02:06")
-		if len(line) < 19 {
-			continue
-		}
-
-		timestamp, err := time.Parse("2006/01/02 15:04:05", line[:19])
-		if err != nil {
-			continue
-		}
-
-		// Remove timestamp and get remainder
-		remainder := strings.TrimSpace(line[19:])
-
-		// Remove tree characters and spaces
-		remainder = strings.TrimLeft(remainder, "│└┌─ ")
-
-		var logLevel, message string
-
-		// Check for BEGIN/END messages
-		if strings.HasPrefix(remainder, "BEGIN:") {
-			logLevel = "INFO"
-			message = "Started: " + strings.TrimSpace(strings.TrimPrefix(remainder, "BEGIN:"))
-		} else if strings.HasPrefix(remainder, "END:") {
-			logLevel = "INFO"
-			message = "Completed: " + strings.TrimSpace(strings.TrimPrefix(remainder, "END:"))
-		} else {
-			// Check for level symbols
-			found := false
-			for symbol, level := range levelMap {
-				if strings.HasPrefix(remainder, symbol) {
-					logLevel = level
-					message = strings.TrimSpace(strings.TrimPrefix(remainder, symbol))
-					found = true
-					break
-				}
-			}
-
-			if !found {
-				logLevel = "INFO"
-				message = remainder
-			}
-		}
-
-		// Filter by level if specified
-		if level != "" && !strings.EqualFold(level, logLevel) {
-			continue
-		}
-
-		entry := types.LogEntry{
-			Timestamp: timestamp,
-			Level:     logLevel,
-			Message:   message,
-		}
-
-		logs = append(logs, entry)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading log file: %v", err)
-	}
-
-	server.logger.Info("Found %d log entries", len(logs))
-	return logs, nil
-}
-
+// Lazy loading approach
 func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	server.logger.Enter("handleGetLogs")
 	defer server.logger.Exit("handleGetLogs")
 
-	userID := r.Context().Value("user_id").(string)
+	server.initLogCacheIfNeeded()
 
-	if !server.forest.CheckPermission(userID, core.AdminPermission) {
-		http.Error(w, "Insufficient permissions", http.StatusForbidden)
+	// Get query parameters
+	query := r.URL.Query()
+	page, _ := strconv.Atoi(query.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	level := query.Get("level")
+
+	// Check if cache needs refresh
+	logPath := filepath.Join(server.config.LogDirectory, fmt.Sprintf("%s.log", server.config.ProcessInfo.ID))
+	fileInfo, err := os.Stat(logPath)
+	if err != nil {
+		server.logger.Error("Failed to stat log file: %v", err)
+		http.Error(w, "Failed to access logs", http.StatusInternalServerError)
 		return
 	}
 
-	server.logger.Info("Getting logs for user %s", userID)
+	if server.logCache.LastModTime != fileInfo.ModTime() {
+		if err := server.updateLogCache(level); err != nil {
+			server.logger.Error("Failed to update log cache: %v", err)
+			http.Error(w, "Failed to update logs", http.StatusInternalServerError)
+			return
+		}
+	}
 
-	level := r.URL.Query().Get("level")
+	// Return paginated results
+	logs, hasMore := server.getPaginatedLogs(page)
 
-	// Use the process ID from server config
-	logPath := filepath.Join(server.config.LogDirectory, fmt.Sprintf("%s.log", server.config.ProcessInfo.ID))
-
-	logs, err := server.readLogFile(logPath, level)
-	if err != nil {
-		server.logger.Failure("Failed to read logs: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("[]"))
-		return
+	response := struct {
+		Logs     []LogEntry `json:"logs"`
+		HasMore  bool       `json:"has_more"`
+		NextPage int        `json:"next_page,omitempty"`
+	}{
+		Logs:    logs,
+		HasMore: hasMore,
+	}
+	if hasMore {
+		response.NextPage = page + 1
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(logs)
+	json.NewEncoder(w).Encode(response)
 }

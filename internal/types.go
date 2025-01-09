@@ -17,6 +17,23 @@ type JWTConfig struct {
 	SecretKey  []byte
 }
 
+type LogEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Level     string    `json:"level"`
+	Message   string    `json:"message"`
+	Trace     string    `json:"trace,omitempty"`
+	Indent    int       `json:"indent"`
+	Type      string    `json:"type"`
+}
+
+type LogCache struct {
+	Logs        []LogEntry
+	LastOffset  int64
+	LastModTime time.Time
+	PageSize    int
+	mutex       sync.RWMutex
+}
+
 type Server struct {
 	forest    *core.Node
 	mutex     sync.Mutex
@@ -25,4 +42,5 @@ type Server struct {
 	server    *http.Server
 	config    types.ServerConfig
 	lastHash  []byte
+	logCache  *LogCache
 }

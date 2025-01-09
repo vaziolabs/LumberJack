@@ -231,13 +231,159 @@ function renderForest(data) {
 }
 
 function initForestGraph(data) {
-    // TODO: Implement D3.js or similar visualization library
-    // to create interactive forest graph visualization
-    // Example structure:
-    // - Nodes represented as circles/rectangles
-    // - Lines connecting parent-child relationships
-    // - Zoom/pan capabilities
-    // - Click to navigate into nodes
+    // Set up SVG container
+    const width = document.getElementById('forest-graph').clientWidth;
+    const height = document.getElementById('forest-graph').clientHeight || 600;
+    
+    const svg = d3.select('#forest-graph')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+        
+    // Create zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => {
+            container.attr('transform', event.transform);
+        });
+        
+    svg.call(zoom);
+    
+    // Create container for zoomable content
+    const container = svg.append('g');
+    
+    // Create force simulation
+    const simulation = d3.forceSimulation()
+        .force('link', d3.forceLink().id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+        
+    // Process data into nodes and links
+    const nodes = [];
+    const links = [];
+    
+    function processNode(node, parentId = null) {
+        const nodeData = {
+            id: node.path,
+            name: node.name || node.path.split('/').pop(),
+            type: node.type,
+            status: node.status
+        };
+        nodes.push(nodeData);
+        
+        if (parentId) {
+            links.push({
+                source: parentId,
+                target: nodeData.id
+            });
+        }
+        
+        // Check if Children exists and is an object
+        if (node.Children && typeof node.Children === 'object') {
+            // Handle both array and object cases
+            const children = Array.isArray(node.Children) ? 
+                node.Children : 
+                Object.values(node.Children);
+                
+            children.forEach(child => processNode(child, nodeData.id));
+        }
+    }
+    
+    // Handle forest data which might be an array or single node
+    if (Array.isArray(data)) {
+        data.forEach(node => processNode(node));
+    } else {
+        processNode(data);
+    }
+
+    // Create links
+    const link = container.append('g')
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('stroke', '#999')
+        .attr('stroke-opacity', 0.6)
+        .attr('stroke-width', 2);
+        
+    // Create nodes
+    const node = container.append('g')
+        .selectAll('g')
+        .data(nodes)
+        .join('g')
+        .call(d3.drag()
+            .on('start', dragStarted)
+            .on('drag', dragged)
+            .on('end', dragEnded));
+            
+    // Add circles for nodes
+    node.append('circle')
+        .attr('r', 10)
+        .attr('fill', d => d.type === 'leaf' ? '#69b3a2' : '#3498db')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+        
+    // Add labels
+    node.append('text')
+        .text(d => d.name)
+        .attr('x', 15)
+        .attr('y', 5)
+        .attr('font-size', '12px');
+        
+    // Add click handler
+    node.on('click', (event, d) => {
+        event.stopPropagation();
+        loadViewData('tree', d.id);
+    });
+    
+    // Update force simulation
+    simulation
+        .nodes(nodes)
+        .on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+                
+            node
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+        
+    simulation.force('link').links(links);
+    
+    // Drag functions
+    function dragStarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+    
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+    
+    function dragEnded(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+    
+    // Add zoom controls
+    document.getElementById('zoom-in').onclick = () => {
+        zoom.scaleBy(svg.transition().duration(750), 1.2);
+    };
+    
+    document.getElementById('zoom-out').onclick = () => {
+        zoom.scaleBy(svg.transition().duration(750), 0.8);
+    };
+    
+    document.getElementById('reset-view').onclick = () => {
+        svg.transition().duration(750).call(
+            zoom.transform,
+            d3.zoomIdentity
+        );
+    };
 }
 
 function renderEvents(data) {
@@ -255,28 +401,6 @@ function renderEvents(data) {
             </div>
         </div>
     `;
-}
-
-function renderLogs(data) {
-    const logsView = document.getElementById('logs-view');
-    const logsList = document.getElementById('logs-list');
-    
-    if (!logsList) {
-        console.error('Logs list element not found');
-        return;
-    }
-
-    // Handle empty or null data
-    const logs = data || [];
-    
-    logsList.innerHTML = logs.length ? logs.map(log => `
-        <div class="log-entry ${log.level.toLowerCase()}">
-            <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
-            <span class="log-level">${log.level}</span>
-            <span class="log-message">${log.message}</span>
-            ${log.trace ? `<pre class="log-trace">${log.trace}</pre>` : ''}
-        </div>
-    `).join('') : '<div class="no-logs">No logs found</div>';
 }
 
 // Add Permission enum to match Go constants
@@ -482,57 +606,212 @@ async function loadForest() {
     }
 }
 
-async function loadLogs() {
+let currentPage = 1;
+let hasMore = false;
+let lastEventId = '';
+let isLoadingLogs = false;
+
+async function loadLogs(reset = false) {
+    if (isLoadingLogs) return;
+    isLoadingLogs = true;
+
     try {
-        const response = await fetchWithAuth('/api/logs', {
-            headers: {
-                'Authorization': `Bearer ${getCookie('session_token')}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to load logs');
+        if (reset) {
+            currentPage = 1;
+            lastEventId = '';
+            document.getElementById('logs-list').innerHTML = '';
         }
 
+        const level = document.getElementById('log-level').value;
+        const url = new URL('/api/logs', window.location.origin);
+        url.searchParams.set('page', currentPage);
+        if (level !== 'all') url.searchParams.set('level', level);
+        if (lastEventId) url.searchParams.set('last_event_id', lastEventId);
+
+        const response = await fetchWithAuth(url.toString());
+        if (!response.ok) throw new Error('Failed to load logs');
+
         const data = await response.json();
-        console.log('Logs data:', data);
-        renderLogs(data);
+        renderLogsPage(data.logs, reset);
+        
+        hasMore = data.has_more;
+        if (hasMore) currentPage = data.next_page;
+        
+        // Update lastEventId for real-time updates
+        if (data.logs.length > 0) {
+            lastEventId = data.logs[data.logs.length - 1].id;
+        }
     } catch (error) {
         console.error('Error loading logs:', error);
-        renderLogs([]); // Render empty state on error
+    } finally {
+        isLoadingLogs = false;
     }
 }
+
+function renderLogsPage(logs, reset) {
+    const logsList = document.getElementById('logs-list');
+    
+    const processedLogs = processLogsIntoGroups(logs);
+    const newLogs = renderLogGroups(processedLogs);
+
+    if (reset) {
+        logsList.innerHTML = newLogs;
+    } else {
+        logsList.insertAdjacentHTML('beforeend', newLogs);
+    }
+
+    // Add click handlers for collapsible groups
+    logsList.querySelectorAll('.log-group-header:not([data-handler])').forEach(header => {
+        header.setAttribute('data-handler', 'true');
+        header.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent event bubbling
+            const group = header.closest('.log-group');
+            if (group) {
+                group.classList.toggle('collapsed');
+            }
+        });
+    });
+}
+
+function processLogsIntoGroups(logs) {
+    const groups = [];
+    const groupStack = [];
+    
+    logs.forEach(log => {
+        if (log.type === 'begin') {
+            // Create new group with proper indentation
+            const group = {
+                header: log,
+                logs: [],
+                indent: groupStack.length, // Use stack length for proper nesting
+                subgroups: []
+            };
+            
+            // Add to parent group or top level
+            if (groupStack.length > 0) {
+                groupStack[groupStack.length - 1].subgroups.push(group);
+            } else {
+                groups.push(group);
+            }
+            
+            groupStack.push(group);
+        } else if (log.type === 'end') {
+            // Pop the last group from stack
+            if (groupStack.length > 0) {
+                groupStack.pop();
+            }
+        } else {
+            // Add to current group or top level with proper indentation
+            const currentIndent = groupStack.length;
+            const logEntry = { ...log, indent: currentIndent };
+            
+            if (groupStack.length > 0) {
+                groupStack[groupStack.length - 1].logs.push(logEntry);
+            } else {
+                groups.push({ logs: [logEntry] });
+            }
+        }
+    });
+
+    return groups;
+}
+
+function renderLogEntry(log) {
+    return `
+        <div class="log-entry ${log.level.toLowerCase()}" style="padding-left: ${(log.indent + 1) * 20}px">
+            <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
+            <span class="log-level">${log.level}</span>
+            <span class="log-message">${escapeHtml(log.message)}</span>
+            ${log.trace ? `<pre class="log-trace">${escapeHtml(log.trace)}</pre>` : ''}
+        </div>
+    `;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function renderLogGroups(groups) {
+    return groups.map(group => {
+        if (!group.header) {
+            // Single log entry
+            return group.logs.map(log => renderLogEntry(log)).join('');
+        }
+
+        // Group with header
+        const groupClass = group.header.level.toLowerCase();
+        const hasContent = group.logs.length > 0 || group.subgroups.length > 0;
+        
+        return `
+            <div class="log-group">
+                <div class="log-group-header ${groupClass}" style="padding-left: ${group.indent * 20}px">
+                    <span class="toggle-icon">${hasContent ? '▼' : '▹'}</span>
+                    <span class="log-timestamp">${new Date(group.header.timestamp).toLocaleString()}</span>
+                    <span class="log-level">${group.header.level}</span>
+                    <span class="log-message">${escapeHtml(group.header.message)}</span>
+                </div>
+                ${hasContent ? `
+                    <div class="log-group-content">
+                        ${group.logs.map(log => renderLogEntry(log)).join('')}
+                        ${group.subgroups.map(subgroup => renderLogGroups([subgroup])).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+// Add infinite scroll
+const logsView = document.getElementById('logs-view');
+logsView?.addEventListener('scroll', () => {
+    if (hasMore && !isLoadingLogs && 
+        logsView.scrollHeight - logsView.scrollTop <= logsView.clientHeight + 100) {
+        loadLogs();
+    }
+});
+
+// Add real-time updates
+setInterval(async () => {
+    if (document.getElementById('logs-view').style.display === 'block') {
+        const oldScrollHeight = logsView.scrollHeight;
+        await loadLogs(false);
+        
+        // Maintain scroll position if user was not at bottom
+        if (logsView.scrollTop < oldScrollHeight - logsView.clientHeight) {
+            logsView.scrollTop = logsView.scrollHeight - oldScrollHeight + logsView.scrollTop;
+        }
+    }
+}, 5000); // Check for updates every 5 seconds
 
 // Add log filtering functionality
 document.getElementById('log-level')?.addEventListener('change', async (e) => {
     const level = e.target.value;
-    const url = level === 'all' ? '/api/logs' : `/api/logs?level=${level}`;
-    
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'Authorization': `Bearer ${getCookie('session_token')}`
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to filter logs');
-        }
-        
-        const data = await response.json();
-        renderLogs(data);
-    } catch (error) {
-        console.error('Error filtering logs:', error);
-    }
+    await loadLogs(true); // Use true to reset the view
 });
 
 document.getElementById('log-search')?.addEventListener('input', (e) => {
     const searchTerm = e.target.value.toLowerCase();
-    const logEntries = document.querySelectorAll('.log-entry');
+    const logGroups = document.querySelectorAll('.log-group');
+    const singleLogs = document.querySelectorAll('.log-entry:not(.log-group .log-entry)');
     
-    logEntries.forEach(entry => {
+    // Search in single logs
+    singleLogs.forEach(entry => {
         const text = entry.textContent.toLowerCase();
         entry.style.display = text.includes(searchTerm) ? 'block' : 'none';
+    });
+
+    // Search in groups
+    logGroups.forEach(group => {
+        const groupContent = group.textContent.toLowerCase();
+        const hasMatch = groupContent.includes(searchTerm);
+        group.style.display = hasMatch ? 'block' : 'none';
+        
+        if (hasMatch) {
+            // If there's a match, expand the group
+            group.classList.remove('collapsed');
+        }
     });
 });
 

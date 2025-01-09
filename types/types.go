@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 type ProcessInfo struct {
 	ID            string `json:"id"`
 	APIPort       string `json:"api_port"`
@@ -44,11 +42,4 @@ type ServerConfig struct {
 	DashboardPort string      `json:"dashboard_port"`
 	Phone         string      `json:"phone,omitempty"`
 	ProcessInfo   ProcessInfo `json:"process_info"`
-}
-
-type LogEntry struct {
-	Timestamp time.Time `json:"timestamp"`
-	Level     string    `json:"level"`
-	Message   string    `json:"message"`
-	Trace     string    `json:"trace,omitempty"`
 }
