@@ -518,12 +518,8 @@ func (server *Server) handleGetUserProfile(w http.ResponseWriter, r *http.Reques
 // HTTP handler for getting a specific tree
 func (server *Server) handleGetTree(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	if path == "" {
-		http.Error(w, "Path parameter required", http.StatusBadRequest)
-		return
-	}
 
-	node, err := server.forest.GetNode(path)
+	node, err := server.queuedGetNode(path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -775,18 +771,17 @@ func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Requ
 
 // Lazy loading approach
 func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
-	server.logger.Enter("handleGetLogs")
-	defer server.logger.Exit("handleGetLogs")
-
 	server.initLogCacheIfNeeded()
 
 	// Get query parameters
 	query := r.URL.Query()
 	page, _ := strconv.Atoi(query.Get("page"))
+	lastEventID := query.Get("last_event_id")
+	level := query.Get("level")
+
 	if page < 1 {
 		page = 1
 	}
-	level := query.Get("level")
 
 	// Check if cache needs refresh
 	logPath := filepath.Join(server.config.LogDirectory, fmt.Sprintf("%s.log", server.config.ProcessInfo.ID))
@@ -805,13 +800,43 @@ func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Get logs after the last event ID if provided
+	var filteredLogs []LogEntry
+	if lastEventID != "" {
+		lastEventTimestamp, err := strconv.ParseInt(lastEventID, 10, 64)
+		if err != nil {
+			server.logger.Error("Invalid last_event_id: %v", err)
+			filteredLogs = server.logCache.Logs
+		} else {
+			// Only include logs that come after the lastEventTimestamp
+			for _, log := range server.logCache.Logs {
+				if log.Timestamp.UnixNano() > lastEventTimestamp {
+					filteredLogs = append(filteredLogs, log)
+				}
+			}
+		}
+	} else {
+		filteredLogs = server.logCache.Logs
+	}
+
 	// Return paginated results
-	logs, hasMore := server.getPaginatedLogs(page)
+	startIdx := (page - 1) * 100
+	endIdx := startIdx + 100
+	if endIdx > len(filteredLogs) {
+		endIdx = len(filteredLogs)
+	}
+
+	hasMore := endIdx < len(filteredLogs)
+	var logs []LogEntry
+	if startIdx < len(filteredLogs) {
+		logs = filteredLogs[startIdx:endIdx]
+	}
 
 	response := struct {
-		Logs     []LogEntry `json:"logs"`
-		HasMore  bool       `json:"has_more"`
-		NextPage int        `json:"next_page,omitempty"`
+		Logs    []LogEntry `json:"logs"`
+		HasMore bool       `json:"has_more"`
+
+		NextPage int `json:"next_page,omitempty"`
 	}{
 		Logs:    logs,
 		HasMore: hasMore,

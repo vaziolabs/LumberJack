@@ -61,7 +61,7 @@ func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) 
 	cookie, err := r.Cookie("session_token")
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("[]"))
+		w.Write([]byte(`{"logs":[],"has_more":false}`))
 		return
 	}
 
@@ -70,30 +70,23 @@ func (s *DashboardServer) handleGetLogs(w http.ResponseWriter, r *http.Request) 
 	req.Header.Set("Authorization", "Bearer "+cookie.Value)
 	req.Header.Set("Content-Type", "application/json")
 
-	// Forward any query parameters (for filtering)
+	// Forward all query parameters including last_event_id
 	req.URL.RawQuery = r.URL.RawQuery
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("[]"))
+		w.Write([]byte(`{"logs":[],"has_more":false}`))
 		return
 	}
 	defer resp.Body.Close()
-
-	// Check if the response status is OK
-	if resp.StatusCode != http.StatusOK {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("[]"))
-		return
-	}
 
 	// Read and validate the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || !json.Valid(body) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte("[]"))
+		w.Write([]byte(`{"logs":[],"has_more":false}`))
 		return
 	}
 

@@ -451,3 +451,14 @@ body {
 .critical { color: #c5452f; }
 .alert { color: #fd1c14; }
 .emergency { color: #ae0606; }
+
+.log-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.log-timestamp {
+    margin-left: auto;
+    white-space: nowrap;
+}

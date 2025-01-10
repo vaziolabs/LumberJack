@@ -14,23 +14,6 @@ type LeafType int
 // EventStatus represents the current status of a timed event
 type EventStatus string
 
-// Admin represents an admin user
-type Admin struct {
-	User
-	Permissions []Permission `json:"permissions"`
-}
-
-// User represents a user in the system
-type User struct {
-	ID           string       `json:"id"`
-	Username     string       `json:"username"`
-	Email        string       `json:"email"`
-	Password     string       `json:"password"`
-	Organization string       `json:"organization"`
-	Phone        string       `json:"phone"`
-	Permissions  []Permission `json:"permissions"`
-}
-
 // Event represents an event with start/end times and entries
 type Event struct {
 	StartTime  *time.Time             `json:"start_time,omitempty"`

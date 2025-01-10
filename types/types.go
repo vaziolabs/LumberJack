@@ -1,45 +1,40 @@
 package types
 
+import "github.com/vaziolabs/lumberjack/internal/core"
+
 type ProcessInfo struct {
 	ID            string `json:"id"`
-	APIPort       string `json:"api_port"`
-	DashboardPort string `json:"dashboard_port"`
-	DashboardUp   bool   `json:"dashboard_up"`
 	PID           int    `json:"pid"`
+	ServerURL     string `json:"server_url"`
+	ServerPort    string `json:"api_port"`
+	DashboardPort string `json:"dashboard_port"`
+	DashboardURL  string `json:"dashboard_url,omitempty"`
+	DashboardUp   bool   `json:"dashboard_up"`
 	DbName        string `json:"db_name"`
-	LogDirectory  string `json:"log_directory"`
+	LogPath       string `json:"log_path"`
+	DatabasePath  string `json:"database_path"`
 }
 
 type Config struct {
-	Version   string              `yaml:"version"`
-	Databases map[string]DBConfig `yaml:"databases"`
+	Version   string                 `yaml:"version"`
+	Databases map[string]ProcessInfo `yaml:"databases"`
 }
 
-type DBConfig struct {
-	Domain        string `yaml:"domain"`
-	Port          string `yaml:"port"`
-	DashboardPort string `yaml:"dashboardport"`
-	DbName        string `yaml:"dbname"`
-	LogDirectory  string `yaml:"logdirectory"`
-}
-
+// User represents a user in the system
 type User struct {
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	Email        string `json:"email"`
-	Phone        string `json:"phone"`
-	Organization string `json:"organization"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Username     string            `json:"username"`
+	Email        string            `json:"email"`
+	Password     string            `json:"password"`
+	Organization string            `json:"organization"`
+	Phone        string            `json:"phone"`
+	Permissions  []core.Permission `json:"permissions"`
 }
 
 type ServerConfig struct {
-	DatabaseName  string      `json:"database_name"`
-	DatabasePath  string      `json:"database_path"`
-	LogDirectory  string      `json:"log_directory"`
-	Organization  string      `json:"organization"`
-	ServerURL     string      `json:"server_url"`
-	ServerPort    string      `json:"server_port"`
-	DashboardURL  string      `json:"dashboard_url,omitempty"`
-	DashboardPort string      `json:"dashboard_port"`
-	Phone         string      `json:"phone,omitempty"`
-	ProcessInfo   ProcessInfo `json:"process_info"`
+	DatabaseName string      `json:"database_name"`
+	Organization string      `json:"organization"`
+	Phone        string      `json:"phone,omitempty"`
+	Process      ProcessInfo `json:"process"`
 }

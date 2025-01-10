@@ -628,18 +628,19 @@ async function loadLogs(reset = false) {
         if (level !== 'all') url.searchParams.set('level', level);
         if (lastEventId) url.searchParams.set('last_event_id', lastEventId);
 
-        const response = await fetchWithAuth(url.toString());
-        if (!response.ok) throw new Error('Failed to load logs');
-
+        const response = await fetch(url);
         const data = await response.json();
-        renderLogsPage(data.logs, reset);
-        
-        hasMore = data.has_more;
-        if (hasMore) currentPage = data.next_page;
-        
-        // Update lastEventId for real-time updates
+
+        // Only proceed if we have new logs
         if (data.logs.length > 0) {
-            lastEventId = data.logs[data.logs.length - 1].id;
+            const lastLog = data.logs[data.logs.length - 1];
+            lastEventId = lastLog.timestamp.toString();
+            renderLogsPage(data.logs, reset);
+        }
+
+        hasMore = data.has_more;
+        if (hasMore) {
+            currentPage = data.next_page;
         }
     } catch (error) {
         console.error('Error loading logs:', error);
@@ -651,20 +652,29 @@ async function loadLogs(reset = false) {
 function renderLogsPage(logs, reset) {
     const logsList = document.getElementById('logs-list');
     
-    const processedLogs = processLogsIntoGroups(logs);
-    const newLogs = renderLogGroups(processedLogs);
+    // Create a unique identifier for each log entry
+    const existingLogs = new Set(Array.from(logsList.querySelectorAll('.log-entry, .log-group'))
+        .map(el => el.getAttribute('data-timestamp')));
+    
+    // Filter out logs we already have
+    const newLogs = logs.filter(log => !existingLogs.has(log.timestamp.toString()));
+    
+    if (newLogs.length === 0) return;
+
+    const processedLogs = processLogsIntoGroups(newLogs);
+    const newLogsHtml = renderLogGroups(processedLogs);
 
     if (reset) {
-        logsList.innerHTML = newLogs;
+        logsList.innerHTML = newLogsHtml;
     } else {
-        logsList.insertAdjacentHTML('beforeend', newLogs);
+        logsList.insertAdjacentHTML('beforeend', newLogsHtml);
     }
 
     // Add click handlers for collapsible groups
     logsList.querySelectorAll('.log-group-header:not([data-handler])').forEach(header => {
         header.setAttribute('data-handler', 'true');
         header.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent event bubbling
+            e.stopPropagation();
             const group = header.closest('.log-group');
             if (group) {
                 group.classList.toggle('collapsed');
@@ -737,7 +747,11 @@ function renderLogGroups(groups) {
     return groups.map(group => {
         if (!group.header) {
             // Single log entry
-            return group.logs.map(log => renderLogEntry(log)).join('');
+            return group.logs.map(log => `
+                <div class="log-entry" data-timestamp="${log.timestamp}">
+                    ${renderLogEntry(log)}
+                </div>
+            `).join('');
         }
 
         // Group with header
@@ -745,7 +759,7 @@ function renderLogGroups(groups) {
         const hasContent = group.logs.length > 0 || group.subgroups.length > 0;
         
         return `
-            <div class="log-group">
+            <div class="log-group" data-timestamp="${group.header.timestamp}">
                 <div class="log-group-header ${groupClass}" style="padding-left: ${group.indent * 20}px">
                     <span class="toggle-icon">${hasContent ? '▼' : '▹'}</span>
                     <span class="log-timestamp">${new Date(group.header.timestamp).toLocaleString()}</span>
@@ -819,5 +833,5 @@ document.getElementById('log-search')?.addEventListener('input', (e) => {
 document.querySelector('a[data-view="logs"]')?.addEventListener('click', async () => {
     document.querySelectorAll('.view').forEach(view => view.style.display = 'none');
     document.getElementById('logs-view').style.display = 'block';
-    await loadLogs();
+    await loadLogs(true); // Reset logs when switching to logs tab
 });

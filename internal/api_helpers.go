@@ -65,6 +65,12 @@ func (server *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 // getNodeFromPath traverses the forest to find a node by its path
 func (server *Server) getNodeFromPath(path string) (*core.Node, error) {
+	// Try cache first
+	if node, err := server.getFromCache(path); err == nil {
+		return node, nil
+	}
+
+	// Cache miss, get from forest
 	if path == "" {
 		return server.forest, nil
 	}
@@ -86,6 +92,8 @@ func (server *Server) getNodeFromPath(path string) (*core.Node, error) {
 		}
 	}
 
+	// Update cache after fetch
+	server.updateCache()
 	return current, nil
 }
 
@@ -331,4 +339,91 @@ func (server *Server) parseLogEntry(line string, level string) (*LogEntry, error
 		Type:      entryType,
 		Indent:    indentCount,
 	}, nil
+}
+
+func (server *Server) initCache() {
+	server.cache = &Cache{
+		Forest: core.NewForest("forest"),
+	}
+}
+
+func (server *Server) initAPIQueue(workers int) {
+	server.apiQueue = &APIQueue{
+		queue:    make(chan APIRequest, 100),
+		workers:  workers,
+		shutdown: make(chan struct{}),
+	}
+
+	// Start workers
+	for i := 0; i < workers; i++ {
+		server.apiQueue.wg.Add(1)
+		go server.apiQueue.worker()
+	}
+}
+
+func (server *Server) getFromCache(path string) (*core.Node, error) {
+	server.cache.mutex.RLock()
+	defer server.cache.mutex.RUnlock()
+
+	if server.cache.Forest == nil || !compareHashes(server.cache.LastHash, server.lastHash) {
+		return nil, fmt.Errorf("cache miss")
+	}
+
+	if path == "" {
+		return server.cache.Forest, nil
+	}
+
+	return server.cache.Forest.GetNode(path)
+}
+
+func (server *Server) updateCache() error {
+	server.cache.mutex.Lock()
+	defer server.cache.mutex.Unlock()
+
+	server.cache.Forest = server.forest
+	server.cache.LastHash = server.lastHash
+	server.cache.LastUpdate = time.Now()
+	return nil
+}
+
+func (q *APIQueue) worker() {
+	defer q.wg.Done()
+
+	for {
+		select {
+		case req := <-q.queue:
+			response := APIResponse{}
+			response.Data = req.Callback(server.forest)
+			req.Response <- response
+		case <-q.shutdown:
+			return
+		}
+	}
+}
+
+// Example of using the queue for an API call
+func (server *Server) queuedGetNode(path string) (*core.Node, error) {
+	responseChan := make(chan APIResponse)
+
+	request := APIRequest{
+		Type: "GET_NODE",
+		Path: path,
+		Callback: func(forest *core.Node) interface{} {
+			node, err := server.getNodeFromPath(path)
+			if err != nil {
+				return APIResponse{Error: err}
+			}
+			return APIResponse{Data: node}
+		},
+		Response: responseChan,
+	}
+
+	server.apiQueue.queue <- request
+	response := <-responseChan
+
+	if response.Error != nil {
+		return nil, response.Error
+	}
+
+	return response.Data.(*core.Node), nil
 }

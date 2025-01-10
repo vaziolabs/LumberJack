@@ -57,6 +57,9 @@ func NewServer(config types.ServerConfig, adminUser types.User) (*Server, error)
 		return nil, err
 	}
 
+	server.initCache()
+	server.initAPIQueue(5) // Start with 5 workers
+
 	return server, nil
 }
 
@@ -135,6 +138,12 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	// Signal workers to shut down
+	close(s.apiQueue.shutdown)
+
+	// Wait for all workers to finish
+	s.apiQueue.wg.Wait()
+
 	if s.server != nil {
 		s.logger.Info("Shutting down API server")
 		return s.server.Shutdown(ctx)

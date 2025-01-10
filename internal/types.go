@@ -34,13 +34,40 @@ type LogCache struct {
 	mutex       sync.RWMutex
 }
 
+type Cache struct {
+	Forest     *core.Node
+	LastHash   []byte
+	LastUpdate time.Time
+	mutex      sync.RWMutex
+}
+
+type APIQueue struct {
+	queue    chan APIRequest
+	workers  int
+	wg       sync.WaitGroup
+	shutdown chan struct{}
+}
+
+type APIRequest struct {
+	Type     string
+	Path     string
+	Callback func(*core.Node) interface{}
+	Response chan APIResponse
+}
+
+type APIResponse struct {
+	Data  interface{}
+	Error error
+}
+
 type Server struct {
 	forest    *core.Node
+	cache     *Cache
+	apiQueue  *APIQueue
 	mutex     sync.Mutex
 	jwtConfig JWTConfig
 	logger    types.Logger
 	server    *http.Server
 	config    types.ServerConfig
-	lastHash  []byte
 	logCache  *LogCache
 }
