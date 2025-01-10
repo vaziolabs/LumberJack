@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/vaziolabs/lumberjack/types"
 )
@@ -17,87 +18,96 @@ var (
 )
 
 func getProcessFilePath(id string) string {
-	return filepath.Join("/var/lib/lumberjack", id+".dat")
+	return filepath.Join(defaultLibDir, id+".pi")
 }
 
-func spawnServer(config types.DBConfig, withDashboard bool) error {
+func spawnServer(userInput types.ProcessInfo, withDashboard bool) error {
+	// Validate server name doesn't already exist
+	processes, err := getRunningServers()
+	if err != nil {
+		return fmt.Errorf("failed to check running servers: %v", err)
+	}
+
+	for _, proc := range processes {
+		if proc.Name == userInput.Name {
+			return fmt.Errorf("server with name '%s' is already running", userInput.Name)
+		}
+	}
+	// Check if config already exists
+	if config := loadConfig(userInput.Name); config.Name != "" {
+		return fmt.Errorf("configuration for '%s' already exists", userInput.Name)
+	}
+
 	// Create unique ID for this instance
 	id := generateID()
 
-	// Use the configured log directory or default
-	logDirectory := "/var/log/lumberjack"
-	if config.LogDirectory != "" {
-		logDirectory = config.LogDirectory
+	// Set up new server with user input values, using defaults where not specified
+	config := types.ProcessInfo{
+		Name:          userInput.Name,
+		ServerURL:     userInput.ServerURL,
+		ServerPort:    userInput.ServerPort,
+		DashboardPort: userInput.DashboardPort,
+		LogPath:       userInput.LogPath,
+		DatabasePath:  filepath.Join(defaultLibDir, userInput.Name),
 	}
 
-	// Ensure log directory exists
-	if err := os.MkdirAll(logDirectory, 0755); err != nil {
+	// Fill in defaults for any empty values
+	if config.ServerURL == "" {
+		config.ServerURL = "localhost"
+	}
+	if config.ServerPort == "" {
+		config.ServerPort = "8080"
+	}
+	if config.DashboardPort == "" {
+		config.DashboardPort = "8081"
+	}
+	if config.LogPath == "" {
+		config.LogPath = defaultLogDir
+	}
+
+	// Ensure directories exist
+	if err := os.MkdirAll(config.LogPath, 0755); err != nil {
 		return fmt.Errorf("failed to create log directory: %v", err)
 	}
+	if err := os.MkdirAll(config.DatabasePath, 0755); err != nil {
+		return fmt.Errorf("failed to create database directory: %v", err)
+	}
 
-	// Create log file in configured directory
-	logPath := filepath.Join(logDirectory, fmt.Sprintf("%s.log", id))
+	// Create log file
+	logPath := filepath.Join(config.LogPath, fmt.Sprintf("%s.log", id))
 	logFile, err := os.Create(logPath)
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %v", err)
 	}
 	defer logFile.Close()
 
-	// Prepare command with proper arguments
-	args := []string{"start", config.DbName}
+	// Create command with proper arguments
+	args := []string{"start", userInput.Name}
 	if withDashboard {
 		args = append(args, "-d")
 	}
+
 	cmd := exec.Command(os.Args[0], args...)
 	cmd.Env = append(os.Environ(), "LUMBERJACK_SPAWNED=1")
-	cmd.Stdout = logFile
-	cmd.Stderr = logFile
 
-	// Detach process completely from parent
+	// Properly detach the process
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
-		Pgid:    0, // Force into new process group
+		Pgid:    0,
 	}
 
-	// Ensure process continues running after parent exits
+	// Start process without waiting
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start server: %v", err)
 	}
 
 	// Don't wait for the process
-	go cmd.Process.Release()
+	go func() {
+		cmd.Process.Release()
+	}()
 
-	// Save process info with log directory
-	proc := types.ProcessInfo{
-		ID:            id,
-		APIPort:       config.Port,
-		DashboardPort: config.DashboardPort,
-		PID:           cmd.Process.Pid,
-		DbName:        config.DbName,
-		DashboardUp:   withDashboard,
-		LogDirectory:  logDirectory,
-	}
-
-	data, err := json.Marshal(proc)
-	if err != nil {
-		return fmt.Errorf("failed to marshal process info: %v", err)
-	}
-
-	processFile := getProcessFilePath(id)
-	if err := os.WriteFile(processFile, data, 0644); err != nil {
-		return fmt.Errorf("failed to save process info: %v", err)
-	}
-
-	// Create live directory if it doesn't exist
-	if err := os.MkdirAll("/etc/lumberjack/live", 0755); err != nil {
-		return fmt.Errorf("failed to create live directory: %v", err)
-	}
-
-	// Create a file in /etc/lumberjack/live to track running process
-	liveFilePath := filepath.Join("/etc/lumberjack/live", id)
-	if err := os.WriteFile(liveFilePath, []byte{}, 0644); err != nil {
-		return fmt.Errorf("failed to create live process file: %v", err)
-	}
+	// Brief pause to ensure process starts
+	time.Sleep(100 * time.Millisecond)
 
 	return nil
 }
@@ -107,7 +117,8 @@ func getRunningServers() ([]types.ProcessInfo, error) {
 	defer processLock.RUnlock()
 
 	// Check live processes directory
-	liveFiles, err := os.ReadDir("/etc/lumberjack/live")
+	liveDir := filepath.Join(defaultProcDir, "live")
+	liveFiles, err := os.ReadDir(liveDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []types.ProcessInfo{}, nil
@@ -117,8 +128,8 @@ func getRunningServers() ([]types.ProcessInfo, error) {
 
 	var processes []types.ProcessInfo
 	for _, file := range liveFiles {
-		// Get process info from .dat file
-		data, err := os.ReadFile(filepath.Join("/var/lib/lumberjack", file.Name()+".dat"))
+		// Get process info from .pi file
+		data, err := os.ReadFile(getProcessFilePath(file.Name()))
 		if err != nil {
 			continue
 		}
@@ -128,7 +139,16 @@ func getRunningServers() ([]types.ProcessInfo, error) {
 			continue
 		}
 
-		processes = append(processes, proc)
+		// Verify process is actually running
+		if process, err := os.FindProcess(proc.PID); err == nil {
+			// Send signal 0 to check if process exists
+			if err := process.Signal(syscall.Signal(0)); err == nil {
+				processes = append(processes, proc)
+			} else {
+				// Process not running, clean up files
+				removeProcess(proc.ID)
+			}
+		}
 	}
 
 	return processes, nil
@@ -138,7 +158,7 @@ func killProcess(proc types.ProcessInfo) error {
 	processLock.Lock()
 	defer processLock.Unlock()
 
-	// Try to kill the process group instead of just the process
+	// Try to kill the process group first
 	pgid, err := syscall.Getpgid(proc.PID)
 	if err == nil {
 		// Kill the entire process group
@@ -146,20 +166,20 @@ func killProcess(proc types.ProcessInfo) error {
 			// If process group kill fails, try killing individual process
 			process, err := os.FindProcess(proc.PID)
 			if err == nil {
-				_ = process.Kill() // Attempt to kill even if process.Kill returns error
+				_ = process.Kill()
 			}
 		}
 	}
 
 	// Clean up process files regardless of kill success
 	_ = os.Remove(getProcessFilePath(proc.ID))
-	_ = os.Remove(filepath.Join("/etc/lumberjack/live", proc.ID))
+	_ = os.Remove(filepath.Join(defaultProcDir, "live", proc.ID))
 
-	// Clean up any leftover port bindings
+	// Don't wait for port cleanup, just run in background
 	if proc.DashboardUp {
-		exec.Command("fuser", "-k", proc.DashboardPort+"/tcp").Run()
+		go exec.Command("fuser", "-k", proc.DashboardPort+"/tcp").Run()
 	}
-	exec.Command("fuser", "-k", proc.APIPort+"/tcp").Run()
+	go exec.Command("fuser", "-k", proc.ServerPort+"/tcp").Run()
 
 	return nil
 }
@@ -168,11 +188,11 @@ func removeProcess(id string) error {
 	processLock.Lock()
 	defer processLock.Unlock()
 
-	// Remove the .dat file - ignore errors
+	// Remove the process info file
 	_ = os.Remove(getProcessFilePath(id))
 
-	// Remove the live process file - ignore errors
-	liveFilePath := filepath.Join("/etc/lumberjack/live", id)
+	// Remove the live process file
+	liveFilePath := filepath.Join(defaultProcDir, "live", id)
 	_ = os.Remove(liveFilePath)
 
 	return nil

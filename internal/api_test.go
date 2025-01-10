@@ -47,11 +47,21 @@ func TestMain(m *testing.M) {
 
 func setupTestForest(t *testing.T) *Server {
 	server, err := NewServer(types.ServerConfig{
-		Port:   "8080",
-		DbName: "test_state",
-		DbPath: filepath.Dir(testDbFile),
-		User:   types.User{Username: "admin", Password: "admin"},
-	})
+		Organization: "test_org",
+		Phone:        "1234567890",
+		Process: types.ProcessInfo{
+			ID:            "test_process",
+			PID:           12345,
+			Name:          "test_state",
+			ServerURL:     "localhost",
+			ServerPort:    "8080",
+			DashboardPort: "8081",
+			DashboardURL:  "localhost",
+			DashboardUp:   true,
+			LogPath:       filepath.Dir(testDbFile),
+			DatabasePath:  filepath.Dir(testDbFile),
+		},
+	}, core.User{Username: "admin", Password: "admin"})
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -189,7 +199,7 @@ func TestForestOperations(t *testing.T) {
 		event1ID := "event1"
 
 		logger.Info("Starting Event 1")
-		if err := childNode2.StartEvent(event1ID, &now, nil, map[string]interface{}{"title": "Test Event 1"}); err != nil {
+		if err := childNode2.StartEvent(event1ID, "user1", &now, nil, map[string]interface{}{"title": "Test Event 1"}); err != nil {
 			logger.Failure("Failed to start event: %v", err)
 			t.Error(err)
 		} else {
@@ -197,7 +207,7 @@ func TestForestOperations(t *testing.T) {
 		}
 
 		logger.Info("Appending Entry to Event 1")
-		if err := childNode2.AppendToEvent(event1ID, "Event entry 1", map[string]interface{}{"note": "First entry"}, "user1"); err != nil {
+		if err := childNode2.AppendToEvent(event1ID, "user1", "Event entry 1", map[string]interface{}{"note": "First entry"}); err != nil {
 			logger.Failure("Failed to append to event: %v", err)
 			t.Errorf("Failed to append to event: %v", err)
 		} else {
@@ -205,7 +215,7 @@ func TestForestOperations(t *testing.T) {
 		}
 
 		logger.Info("Ending Event 1")
-		if err := childNode2.EndEvent(event1ID); err != nil {
+		if err := childNode2.EndEvent(event1ID, "user1"); err != nil {
 			logger.Failure("Failed to end event: %v", err)
 			t.Errorf("Failed to end event: %v", err)
 		} else {
@@ -265,7 +275,7 @@ func TestForestOperations(t *testing.T) {
 		event2ID := "event2"
 		plannedStart := now.Add(time.Hour)
 		plannedEnd := now.Add(2 * time.Hour)
-		if err := childNode2.PlanEvent(event2ID, &plannedStart, &plannedEnd, map[string]interface{}{"title": "Test Event 2"}); err != nil {
+		if err := childNode2.PlanEvent(event2ID, "user1", &plannedStart, &plannedEnd, map[string]interface{}{"title": "Test Event 2"}); err != nil {
 			logger.Failure("Failed to plan event: %v", err)
 			t.Errorf("Failed to plan event: %v", err)
 		} else {
@@ -288,18 +298,18 @@ func TestForestOperations(t *testing.T) {
 
 		childNode2 := rootNode.Children["child2"]
 
-		start_entry := childNode2.StartTimeTracking("user1")
-		if start_entry == nil {
-			logger.Failure("Failed to start time tracking")
-			t.Error("Failed to start time tracking")
+		_, err := childNode2.StartTimeTracking("user1")
+		if err != nil {
+			logger.Failure("Failed to start time tracking: %v", err)
+			t.Error(err)
 		} else {
 			logger.Success("Time tracking started")
 		}
 
-		end_entry := childNode2.StopTimeTracking("user1")
-		if end_entry == nil {
-			logger.Failure("Failed to stop time tracking")
-			t.Error("Failed to stop time tracking")
+		_, err = childNode2.StopTimeTracking("user1")
+		if err != nil {
+			logger.Failure("Failed to stop time tracking: %v", err)
+			t.Error(err)
 		} else {
 			logger.Success("Time tracking stopped")
 		}
@@ -325,18 +335,30 @@ func TestForestOperations(t *testing.T) {
 		}
 
 		// Create new app and load state
-		newApp, err := NewServer(types.ServerConfig{Port: "8080"})
+		newApp, err := NewServer(types.ServerConfig{
+			Organization: "test_org",
+			Phone:        "1234567890",
+			Process: types.ProcessInfo{
+				Name:       "test_state",
+				ServerPort: "8080",
+			},
+		}, core.User{Username: "admin", Password: "admin"})
 		if err != nil {
+			logger.Failure("Failed to create server: %v", err)
 			t.Fatalf("Failed to create server: %v", err)
+		} else {
+			logger.Success("Server created successfully")
 		}
-		var loadedForest core.Node
-		if err := newApp.readChangesFromFile(testDbFile, &loadedForest); err != nil {
+		if err := newApp.loadFromFile(testDbFile); err != nil {
+			logger.Failure("Failed to load state from file: %v", err)
 			t.Fatalf("Failed to load state from file: %v", err)
+		} else {
+			logger.Success("State loaded successfully")
 		}
-		newApp.forest = &loadedForest
 
 		// Verify the loaded forest
 		if _, err := newApp.forest.GetNode("child2"); err != nil {
+			logger.Failure("Failed to find childNode2 in the loaded forest: %v", err)
 			t.Errorf("Failed to find childNode2 in the loaded forest: %v", err)
 		} else {
 			logger.Success("Found childNode2 in the loaded forest")
@@ -909,7 +931,7 @@ func TestMultipleParentNodes(t *testing.T) {
 
 	logger.Enter("Event Propagation")
 	// Test event propagation through all parents
-	savingsNode.StartEvent("deposit", nil, nil, map[string]interface{}{"amount": 1000})
+	savingsNode.StartEvent("deposit", "user1", nil, nil, map[string]interface{}{"amount": 1000})
 
 	// Verify event is accessible from all paths
 	for _, path := range paths {

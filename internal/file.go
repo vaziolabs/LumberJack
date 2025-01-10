@@ -41,7 +41,7 @@ func (server *Server) loadFromFile(filename string) error {
 	}
 
 	// Important: Copy the loaded forest to server's forest
-	*server.forest = loadedForest
+	server.forest = &loadedForest
 	server.logger.Debug("Loaded forest: %+v", server.forest)
 	return nil
 }

@@ -108,20 +108,20 @@ func (server *Server) UpdateSettings(userID string, settings types.ServerConfig)
 	}
 
 	// Update server settings if values are provided
-	if settings.ServerPort != "" {
-		server.config.ServerPort = settings.ServerPort
+	if settings.Process.ServerPort != "" {
+		server.config.Process.ServerPort = settings.Process.ServerPort
 	}
-	if settings.DashboardPort != "" {
-		server.config.DashboardPort = settings.DashboardPort
+	if settings.Process.DashboardPort != "" {
+		server.config.Process.DashboardPort = settings.Process.DashboardPort
 	}
-	if settings.ServerURL != "" {
-		server.config.ServerURL = settings.ServerURL
+	if settings.Process.ServerURL != "" {
+		server.config.Process.ServerURL = settings.Process.ServerURL
 	}
-	if settings.DatabasePath != "" {
-		server.config.DatabasePath = settings.DatabasePath
+	if settings.Process.DatabasePath != "" {
+		server.config.Process.DatabasePath = settings.Process.DatabasePath
 	}
-	if settings.LogDirectory != "" {
-		server.config.LogDirectory = settings.LogDirectory
+	if settings.Process.LogPath != "" {
+		server.config.Process.LogPath = settings.Process.LogPath
 	}
 	if settings.Organization != "" {
 		server.config.Organization = settings.Organization
@@ -138,7 +138,7 @@ func (server *Server) UpdateSettings(userID string, settings types.ServerConfig)
 
 // saveConfig writes the current configuration to disk
 func (server *Server) saveConfig() error {
-	viper.Set("databases."+server.config.DatabaseName, server.config)
+	viper.Set("databases."+server.config.Process.Name, server.config)
 	return viper.WriteConfig()
 }
 
@@ -206,7 +206,7 @@ func (server *Server) updateLogCache(level string) error {
 	server.logCache.mutex.Lock()
 	defer server.logCache.mutex.Unlock()
 
-	logPath := filepath.Join(server.config.LogDirectory, fmt.Sprintf("%s.log", server.config.ProcessInfo.ID))
+	logPath := filepath.Join(server.config.Process.LogPath, fmt.Sprintf("%s.log", server.config.Process.ID))
 	fileInfo, err := os.Stat(logPath)
 	if err != nil {
 		return err
@@ -357,7 +357,7 @@ func (server *Server) initAPIQueue(workers int) {
 	// Start workers
 	for i := 0; i < workers; i++ {
 		server.apiQueue.wg.Add(1)
-		go server.apiQueue.worker()
+		go server.worker()
 	}
 }
 
@@ -386,16 +386,16 @@ func (server *Server) updateCache() error {
 	return nil
 }
 
-func (q *APIQueue) worker() {
-	defer q.wg.Done()
+func (server *Server) worker() {
+	defer server.apiQueue.wg.Done()
 
 	for {
 		select {
-		case req := <-q.queue:
+		case req := <-server.apiQueue.queue:
 			response := APIResponse{}
 			response.Data = req.Callback(server.forest)
 			req.Response <- response
-		case <-q.shutdown:
+		case <-server.apiQueue.shutdown:
 			return
 		}
 	}

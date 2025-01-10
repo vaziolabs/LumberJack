@@ -70,4 +70,5 @@ type Server struct {
 	server    *http.Server
 	config    types.ServerConfig
 	logCache  *LogCache
+	lastHash  []byte
 }

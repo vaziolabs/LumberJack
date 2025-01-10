@@ -54,7 +54,7 @@ func deleteConfig(cmd *cobra.Command, args []string) {
 			if err := killProcess(proc); err != nil {
 				fmt.Printf("Warning: Error killing process %s: %v\n", proc.ID, err)
 			} else {
-				fmt.Printf("Killing %s lumberjack server - process %s\n.", proc.DbName, proc.ID)
+				fmt.Printf("Killing %s lumberjack server - process %s\n.", proc.Name, proc.ID)
 			}
 		}
 
@@ -183,7 +183,7 @@ func getConfigDir() string {
 	return defaultProcDir
 }
 
-func loadConfig(dbName string) types.DBConfig {
+func loadConfig(dbName string) types.ProcessInfo {
 	configDir := getConfigDir()
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")

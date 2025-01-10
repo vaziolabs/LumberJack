@@ -542,8 +542,8 @@ func (server *Server) handleGetServerSettings(w http.ResponseWriter, r *http.Req
 	// Return safe subset of server settings
 	settings := map[string]interface{}{
 		"organization":  server.config.Organization,
-		"server_port":   server.config.ServerPort,
-		"dashboard_url": server.config.DashboardURL,
+		"server_port":   server.config.Process.ServerPort,
+		"dashboard_url": server.config.Process.DashboardURL,
 		"phone":         server.config.Phone,
 	}
 
@@ -574,7 +574,7 @@ func (server *Server) handleUpdateServerSettings(w http.ResponseWriter, r *http.
 	}
 
 	// Save state after settings update
-	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+	if err := server.writeChangesToFile(server.forest, server.config.Process.DatabasePath); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -640,7 +640,7 @@ func (server *Server) handleUploadAttachment(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Save state after attachment upload
-	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+	if err := server.writeChangesToFile(server.forest, server.config.Process.DatabasePath); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -728,7 +728,7 @@ func (server *Server) handleAddEntryAttachment(w http.ResponseWriter, r *http.Re
 	}
 
 	// Save state
-	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+	if err := server.writeChangesToFile(server.forest, server.config.Process.DatabasePath); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -761,7 +761,7 @@ func (server *Server) handleDeleteAttachment(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Save state after deletion
-	if err := server.writeChangesToFile(server.forest, server.config.DatabasePath); err != nil {
+	if err := server.writeChangesToFile(server.forest, server.config.Process.DatabasePath); err != nil {
 		http.Error(w, "Failed to save state", http.StatusInternalServerError)
 		return
 	}
@@ -784,7 +784,7 @@ func (server *Server) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if cache needs refresh
-	logPath := filepath.Join(server.config.LogDirectory, fmt.Sprintf("%s.log", server.config.ProcessInfo.ID))
+	logPath := filepath.Join(server.config.Process.LogPath, fmt.Sprintf("%s.log", server.config.Process.ID))
 	fileInfo, err := os.Stat(logPath)
 	if err != nil {
 		server.logger.Error("Failed to stat log file: %v", err)

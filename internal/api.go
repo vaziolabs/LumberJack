@@ -12,7 +12,7 @@ import (
 	"github.com/vaziolabs/lumberjack/types"
 )
 
-func NewServer(config types.ServerConfig, adminUser types.User) (*Server, error) {
+func NewServer(config types.ServerConfig, adminUser core.User) (*Server, error) {
 	router := mux.NewRouter()
 
 	server := &Server{
@@ -23,7 +23,7 @@ func NewServer(config types.ServerConfig, adminUser types.User) (*Server, error)
 		},
 		logger: types.NewLogger(),
 		server: &http.Server{
-			Addr:    ":" + config.ServerPort,
+			Addr:    ":" + config.Process.ServerPort,
 			Handler: router,
 		},
 		config: config,
@@ -51,7 +51,7 @@ func NewServer(config types.ServerConfig, adminUser types.User) (*Server, error)
 		return nil, err
 	}
 
-	dbPath := filepath.Join(config.DatabasePath, config.DatabaseName+".dat")
+	dbPath := filepath.Join(config.Process.DatabasePath, config.Process.Name+".dat")
 	if err := server.writeChangesToFile(server.forest, dbPath); err != nil {
 		server.logger.Failure("failed to save state after user creation: %v", err)
 		return nil, err
@@ -74,7 +74,7 @@ func LoadServer(config types.ServerConfig) (*Server, error) {
 		},
 		logger: types.NewLogger(),
 		server: &http.Server{
-			Addr:    ":" + config.ServerPort,
+			Addr:    ":" + config.Process.ServerPort,
 			Handler: router,
 		},
 		config: config,
@@ -83,7 +83,8 @@ func LoadServer(config types.ServerConfig) (*Server, error) {
 	server.logger.Enter("LoadServer")
 	defer server.logger.Exit("LoadServer")
 
-	dbPath := filepath.Join(config.DatabasePath, config.DatabaseName+".dat")
+	dbPath := filepath.Join(config.Process.DatabasePath, config.Process.Name+".dat")
+	server.logger.Debug("Loading database from %s", dbPath)
 	if err := server.loadFromFile(dbPath); err != nil {
 		server.logger.Failure("failed to load database: %v", err)
 		return nil, err

@@ -85,3 +85,15 @@ type Attachment struct {
 	UploadedBy string    `json:"uploaded_by"`
 	UploadedAt time.Time `json:"uploaded_at"`
 }
+
+// User represents a user in the system
+type User struct {
+	ID           string       `json:"id"`
+	Name         string       `json:"name"`
+	Username     string       `json:"username"`
+	Email        string       `json:"email"`
+	Password     string       `json:"password"`
+	Organization string       `json:"organization"`
+	Phone        string       `json:"phone"`
+	Permissions  []Permission `json:"permissions"`
+}

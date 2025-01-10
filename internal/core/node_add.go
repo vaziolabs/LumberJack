@@ -1,6 +1,8 @@
 package core
 
-import "time"
+import (
+	"time"
+)
 
 // AddActivity adds an activity entry to the node
 func (n *Node) AddActivity(content interface{}, metadata map[string]interface{}, userID string) {
